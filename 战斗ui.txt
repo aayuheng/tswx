@@ -45,6 +45,7 @@
 
 body {
   width: 100%;
+  overflow: hidden;
   font-family: var(--font-body);
   color: var(--parchment);
   background: var(--void);
