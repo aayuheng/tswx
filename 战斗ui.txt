@@ -3469,7 +3469,7 @@ function buildKfPanel(){
     if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
     const cd=G.cds[key]?.[kfName]||0, mpOk=c.mp.cur>=kf.消耗内力, cdOk=cd<=0;
     const off=!mpOk||!cdOk;
-    const cdDisplay=cd>1?cd-1:cd>0?1:0;
+    const cdDisplay=cd;
     const rng=(kf.作用范围||'').replace('敌方','敌').replace('我方','友').replace('群体','群').replace('仅我','己');
     const totalCd=kf.冷却?kf.冷却[0]:0;
     const cdStr=cdOk?(totalCd>0?`就绪(${totalCd}回合)`:'无CD'):`冷却${cdDisplay}/${totalCd}`;
@@ -3527,7 +3527,7 @@ function buildKfPanel(){
     if(kf){
       const cd=G.cds[key]?.[cpName]||0, mpOk=c.mp.cur>=kf.消耗内力, cdOk=cd<=0;
       const off=!mpOk||!cdOk;
-      const cdDisplay=cd>1?cd-1:cd>0?1:0;
+      const cdDisplay=cd;
       const rng=(kf.作用范围||'').replace('敌方','敌').replace('我方','友').replace('群体','群').replace('仅我','己');
       const totalCd=kf.冷却?kf.冷却[0]:0;
       const cdStr=cdOk?(totalCd>0?`就绪(${totalCd}回合)`:'无CD'):`冷却${cdDisplay}/${totalCd}`;
