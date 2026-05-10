@@ -50,7 +50,7 @@
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
-body{width:100%;min-height:100vh;background:var(--ink-deep);color:var(--text);font-family:'Noto Serif SC',serif;font-size:14px;line-height:1.6;overflow-x:hidden;position:relative}
+body{width:100%;min-height:100vh;background:var(--ink-deep);color:var(--text);font-family:'Noto Serif SC',serif;font-size:14px;line-height:1.6;overflow:hidden;position:relative}
 
 /* ── 环境光晕背景 ── */
 body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
@@ -946,6 +946,27 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 </div>
 
 <script>
+// ══════════════════════════════════════════════
+//  iframe高度自适应（覆盖loader的resize脚本，加防抖）
+// ══════════════════════════════════════════════
+(function(){
+  const f=window.frameElement; if(!f)return;
+  window._wxResizeOwn=true;
+  let _debounce=0;
+  const resize=()=>{
+    const b=document.body,h=document.documentElement;
+    const ob=b.style.minHeight,oh=h.style.minHeight;
+    b.style.minHeight='0';h.style.minHeight='0';
+    const sh=b.scrollHeight;
+    b.style.minHeight=ob;h.style.minHeight=oh;
+    f.style.height=sh+'px';
+  };
+  const debouncedResize=()=>{clearTimeout(_debounce);_debounce=setTimeout(resize,50);};
+  new MutationObserver(debouncedResize).observe(document.body,{childList:true,subtree:true,attributes:true});
+  document.addEventListener('DOMContentLoaded',resize);
+  window._wxResize=resize;
+})();
+
 // ══════════════════════════════════════════════
 //  工具
 // ══════════════════════════════════════════════
