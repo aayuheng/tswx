@@ -116,6 +116,10 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 #wx-content em{color:var(--text-soft);font-style:italic}
 
 /* ── 选项区 ── */
+.wx-opt-modes{display:flex;align-items:center;gap:0;margin-bottom:14px}
+.wx-opt-modes .wx-section-label{flex:1;margin-bottom:0}
+.wx-opt-mode-btn{font-size:9px;padding:3px 8px;border-radius:4px;border:1px solid var(--glass-border);background:transparent;color:var(--text-soft);cursor:pointer;letter-spacing:1px;transition:all .25s;white-space:nowrap;flex-shrink:0}
+.wx-opt-mode-btn.active{color:var(--gold-l);border-color:var(--gold-dim);background:hsla(42,68%,52%,0.1);text-shadow:0 0 6px hsla(42,68%,52%,0.3)}
 .wx-options{padding:16px 18px 20px;animation:fadeInUp 0.6s var(--ease-silk) 0.1s both}
 #wx-opts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 .wx-opt{display:flex;align-items:center;justify-content:center;padding:12px 16px;
@@ -363,7 +367,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
   background:var(--glass);cursor:pointer;transition:all .25s var(--ease-silk);backdrop-filter:blur(4px)}
 .wx-kungfu-item:hover{border-color:var(--gold-dim);background:var(--glass-m);transform:translateX(2px)}
 .wx-kungfu-item-head{display:flex;align-items:center;gap:10px}
-.wx-kungfu-item-name{flex:1;font-size:13px;color:var(--gold-l);letter-spacing:0.5px}
+.wx-kungfu-item-name{flex:1;font-size:13px;letter-spacing:0.5px}
+.wx-kungfu-item-name.nc-普通{color:hsl(200,45%,65%)}
+.wx-kungfu-item-name.nc-内功{color:hsl(270,45%,68%)}
+.wx-kungfu-item-name.nc-轻功{color:hsl(152,45%,58%)}
+.wx-kungfu-item-name.nc-绝学{color:var(--gold)}
 .wx-kungfu-cat{font-size:9px;padding:2px 8px;border-radius:4px;border:1px solid;flex-shrink:0;letter-spacing:1px;
   backdrop-filter:blur(4px)}
 .cat-普通{border-color:hsla(200,40%,55%,0.35);color:hsl(200,45%,65%);background:hsla(200,40%,55%,0.06)}
@@ -911,7 +919,11 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
   <div class="wx-divider" role="separator"><div class="wx-divider-gem"></div></div>
 
   <section class="wx-options" aria-label="行动选择">
-    <div class="wx-section-label"><span>行动选择</span></div>
+    <div class="wx-opt-modes">
+      <button class="wx-opt-mode-btn" id="wx-mode-send">直发</button>
+      <div class="wx-section-label"><span>行动选择</span></div>
+      <button class="wx-opt-mode-btn active" id="wx-mode-append">追加</button>
+    </div>
     <div id="wx-opts"></div>
   </section>
 
@@ -938,7 +950,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 //  工具
 // ══════════════════════════════════════════════
 let _toastTimer = null;
-let _battleAlert = false; // 检测到敌人但无战斗标签
+let _battleAlert = false;
+let _optMode = localStorage.getItem('wx_opt_mode') || 'append';
 function showToast(msg, dur = 2400) {
   const t = document.getElementById('wx-toast');
   t.textContent = msg; t.classList.add('show');
@@ -2067,7 +2080,18 @@ function renderOptions(raw) {
       for (const doc of docs) {
         try {
           const ta = doc.getElementById('send_textarea');
-          if (ta) { ta.value=opt; ta.dispatchEvent(new Event('input',{bubbles:true})); ta.dispatchEvent(new Event('change',{bubbles:true})); ta.focus(); break; }
+          if (ta) {
+            if (_optMode === 'append') { ta.value = ta.value + opt; }
+            else { ta.value = opt; }
+            ta.dispatchEvent(new Event('input',{bubbles:true}));
+            ta.dispatchEvent(new Event('change',{bubbles:true}));
+            ta.focus();
+            if (_optMode === 'send') {
+              const sendBtn = doc.getElementById('send_but');
+              if (sendBtn) sendBtn.click();
+            }
+            break;
+          }
         } catch(e) {}
       }
     });
@@ -2544,7 +2568,7 @@ function buildKungfuPanel(charKey, char) {
     const isNeigong = cat === '内功';
     return `<div class="wx-kungfu-item" data-kungfu="${name}" data-key="${charKey}">
       <div class="wx-kungfu-item-head">
-        <div class="wx-kungfu-item-name">${name}${isMainKf?'<span style="font-size:9px;color:var(--jade-l);margin-left:6px;border:1px solid hsla(152,42%,40%,0.3);padding:1px 6px;border-radius:3px">主运</span>':''}</div>
+        <div class="wx-kungfu-item-name nc-${cat}">${name}${isMainKf?'<span style="font-size:9px;color:var(--jade-l);margin-left:6px;border:1px solid hsla(152,42%,40%,0.3);padding:1px 6px;border-radius:3px">主运</span>':''}</div>
         <span class="wx-kungfu-cat cat-${cat}">${cat}</span>
       </div>
       ${kf?`<div class="wx-kungfu-detail ${opened?'open':''}">
@@ -3033,6 +3057,15 @@ if(typeof eventOn==='function'&&typeof tavern_events!=='undefined'){
   eventOn(tavern_events.CHAT_CHANGED,loadContent);
 }
 loadContent();
+
+// ── 行动选项模式切换 ──
+(function(){
+  const btnS=document.getElementById('wx-mode-send'), btnA=document.getElementById('wx-mode-append');
+  if(_optMode==='send'){btnS.classList.add('active');btnA.classList.remove('active');}
+  else{btnA.classList.add('active');btnS.classList.remove('active');}
+  btnS.addEventListener('click',function(){_optMode='send';localStorage.setItem('wx_opt_mode','send');btnS.classList.add('active');btnA.classList.remove('active');});
+  btnA.addEventListener('click',function(){_optMode='append';localStorage.setItem('wx_opt_mode','append');btnA.classList.add('active');btnS.classList.remove('active');});
+})();
 
 // ── BGM 系统 ──
 (function(){
