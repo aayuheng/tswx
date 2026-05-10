@@ -4094,57 +4094,115 @@ function autoAct(key){
     doNormalAttack(key,tgtKey);
   }
 }
+function _classifyRole(kungfuList){
+  let atk=0,sup=0,ctrl=0;
+  const CTRLS=['点穴','眩晕','冰冻','封穴'];
+  for(const name of kungfuList){
+    const kf=KUNGFU_LIB[name]; if(!kf)continue;
+    if(kf.影响状态&&CTRLS.includes(kf.影响状态.名称)){ctrl++;}
+    else if(kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内')){sup++;}
+    else{atk++;}
+  }
+  if(ctrl>=atk&&ctrl>=sup)return 'ctrl';
+  if(sup>=atk&&sup>=ctrl)return 'sup';
+  return 'atk';
+}
+function _isHeal(kf){return kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内');}
+function _isCtrl(kf){const C=['点穴','眩晕','冰冻','封穴'];return kf.影响状态&&C.includes(kf.影响状态.名称);}
+function _isAoe(kf){const r=kf.作用范围||'';return r.includes('群体')||r.includes('全体');}
+function _tgtHasCtrl(tKey){return(G.statuses[tKey]||[]).some(s=>['点穴','眩晕','冰冻','封穴'].includes(s.名称));}
+
 function enemyAct(key){
   const c=gA(key); if(!c||!c.alive){endTurn(key);return;}
   const ps=aliveP(); if(!ps.length){endTurn(key);return;}
-  let tgtKey=ps[Math.floor(Math.random()*ps.length)];
-  let guarded=false;
+  const es=aliveE();
+  const sealed=(G.statuses[key]||[]).some(s=>s.名称==='封穴');
+  const role=_classifyRole(c.kungfu||[]);
+  const hpPct=c.hp.cur/c.hp.max;
+
+  // 目标选择：输出型70%集火最低血量，控制型优先未被控目标
+  let tgtKey;
+  if(role==='atk'&&Math.random()<0.7){
+    tgtKey=ps.reduce((a,b)=>(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b);
+  } else if(role==='ctrl'){
+    const unCtrl=ps.filter(k=>!_tgtHasCtrl(k));
+    tgtKey=unCtrl.length?unCtrl[Math.floor(Math.random()*unCtrl.length)]:ps[Math.floor(Math.random()*ps.length)];
+  } else {
+    tgtKey=ps[Math.floor(Math.random()*ps.length)];
+  }
+
+  // 保护判定
   if(G.jiazhuMap[tgtKey]&&Math.random()<0.8){
     const g=G.jiazhuMap[tgtKey];
     if(gA(g)?.alive){
       log(`${gA(g).name} 挺身保护 ${gA(tgtKey)?.name}！`,'l-buff');
       floatDmg(q(`card-${tgtKey}`),'被保护','hsl(158,50%,55%)','12px');
       tgtKey=g;
-      guarded=true;
     }
   }
+
   let usedKf=null;
-  const sealed=(G.statuses[key]||[]).some(s=>s.名称==='封穴');
   if(!sealed){
+    // 收集可用武功
+    const avail=[];
     for(const kfName of c.kungfu||[]){
       const kf=KUNGFU_LIB[kfName]; if(!kf||kf.消耗内力===0)continue;
       const cd=G.cds[key]?.[kfName]||0;
       if(cd>0||c.mp.cur<kf.消耗内力)continue;
-      // 回血类即时武功：5%概率使用
-      if(kf.影响状态&&kf.影响状态.名称==='回血'&&kf.影响状态.影响回合===0&&Math.random()>0.05)continue;
-      usedKf=kfName; break;
+      avail.push({name:kfName,kf});
     }
-    // 检查复制武功
+    // 复制武功也加入候选
+    const cpName=G.copiedKf?.[key];
+    const cpSt=(G.statuses[key]||[]).some(s=>s.名称==='小无相功'&&s.剩余回合>0);
+    if(cpName&&cpSt){
+      const cpKf=KUNGFU_LIB[cpName];
+      if(cpKf&&cpKf.消耗内力>0&&(G.cds[key]?.[cpName]||0)<=0&&c.mp.cur>=cpKf.消耗内力)
+        avail.push({name:cpName,kf:cpKf});
+    }
+
+    // 自保：自身血量<20%时40%概率优先自回血
+    if(hpPct<0.2&&Math.random()<0.4){
+      const heal=avail.find(a=>_isHeal(a.kf)&&(a.kf.作用范围||'').includes('仅我'));
+      if(heal) usedKf=heal.name;
+    }
+    // 治疗队友：队友血量<20%时40%概率治疗
     if(!usedKf){
-      const cpName=G.copiedKf?.[key];
-      const cpSt=(G.statuses[key]||[]).some(s=>s.名称==='小无相功'&&s.剩余回合>0);
-      if(cpName&&cpSt){
-        const cpKf=KUNGFU_LIB[cpName];
-        if(cpKf&&cpKf.消耗内力>0&&(G.cds[key]?.[cpName]||0)<=0&&c.mp.cur>=cpKf.消耗内力) usedKf=cpName;
+      const hurtAlly=es.filter(k=>k!==key&&gA(k)?.alive&&gA(k).hp.cur/gA(k).hp.max<0.2);
+      if(hurtAlly.length&&Math.random()<0.4){
+        const heal=avail.find(a=>_isHeal(a.kf)&&!(a.kf.作用范围||'').includes('仅我'));
+        if(heal) usedKf=heal.name;
+      }
+    }
+    // 策略选择
+    if(!usedKf){
+      for(const {name,kf} of avail){
+        // 轻功：20%概率使用
+        if(kf.类别==='轻功'){if(Math.random()>0.2)continue; usedKf=name; break;}
+        // 回血类：血量>20%时仅5%概率
+        if(_isHeal(kf)){if(hpPct>=0.2&&Math.random()>0.05)continue; usedKf=name; break;}
+        // 控制类：目标已被控则跳过
+        if(_isCtrl(kf)&&_tgtHasCtrl(tgtKey))continue;
+        // 群攻：输出型且目标≥3时优先
+        if(role==='atk'&&_isAoe(kf)&&ps.length>=3){usedKf=name; break;}
+        // 默认使用
+        usedKf=name; break;
       }
     }
   }
+
   if(usedKf){
     const kf=KUNGFU_LIB[usedKf];
     c.mp.cur=Math.max(0,c.mp.cur-kf.消耗内力); updateCard(key);
     const range=kf.作用范围||'';
     let tgts;
-    // 区分敌方/我方范围：对敌人AI来说，"我方"是敌方阵营，"敌方"是玩家阵营
-    const isAlly = range.includes('我方') || range.includes('仅我');
-    const pool = isAlly ? aliveE() : aliveP();
+    const isAlly=range.includes('我方')||range.includes('仅我');
+    const pool=isAlly?aliveE():aliveP();
     if(range.includes('仅我')){
       tgts=[key];
-    } else if(range.includes('全体')){
-      tgts=[...pool];
-    } else if(range.includes('群体')){
+    } else if(range.includes('全体')||range.includes('群体')){
       tgts=[...pool];
     } else if(range.includes('相邻')){
-      const pick = isAlly ? pool[Math.floor(Math.random()*pool.length)] : tgtKey;
+      const pick=isAlly?pool[Math.floor(Math.random()*pool.length)]:tgtKey;
       tgts=[pick];
       if(pool.length>1){
         const idx=pool.indexOf(pick);
@@ -4152,7 +4210,13 @@ function enemyAct(key){
         if(cd.length)tgts.push(cd[Math.floor(Math.random()*cd.length)]);
       }
     } else {
-      tgts = isAlly ? [pool[Math.floor(Math.random()*pool.length)]] : [tgtKey];
+      if(isAlly){
+        // 治疗类：优先治疗血量最低的队友
+        if(_isHeal(kf)){
+          const lowest=pool.reduce((a,b)=>(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b);
+          tgts=[lowest];
+        } else {tgts=[pool[Math.floor(Math.random()*pool.length)]];}
+      } else {tgts=[tgtKey];}
     }
     const fxPromises=[];
     for(const t of tgts)fxPromises.push(doKfOnTgt(key,usedKf,kf,t));
