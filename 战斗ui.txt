@@ -3672,11 +3672,15 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
   // 属性附加影响：字符串，取角色对应属性值
   const attrName=kf.属性附加影响||'无';
   const attrVal=attrName!=='无'?getAttr(atkKey,attrName):0;
-  const attrMul=1+attrVal/80;
-  // 基本功加成：取基本功要求中对应的基本功
+  const attrMul=1+attrVal/(attrVal+200);
+  // 基本功加成：取要求最高的基本功 + 内功底蕴
   let bskVal=0;
-  for(const bName of Object.keys(kf.基本功要求||{})){
-    bskVal+=getBskill(atkKey,bName);
+  const reqEntries=Object.entries(kf.基本功要求||{}).filter(([,v])=>v>0);
+  if(reqEntries.length){
+    let maxReq=0,maxName='';
+    for(const [bName,req] of reqEntries){if(bName!=='内功底蕴'&&req>maxReq){maxReq=req;maxName=bName;}}
+    if(maxName) bskVal+=getBskill(atkKey,maxName);
+    bskVal+=getBskill(atkKey,'内功底蕴');
   }
   const bskMul=1+bskVal/150;
   let dmg=base*rand(floatR[0],floatR[1])*attrMul*bskMul;
