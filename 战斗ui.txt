@@ -3651,21 +3651,24 @@ function finishCopyKf(atkKey,tgtKey,kfName){
 
 async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
   const atk=gA(atkKey),tgt=gA(tgtKey); if(!atk||!tgt||!tgt.alive)return;
-  // 命中判定（武功独立命中率，不受身法影响）
-  let hitRate=kf.命中率??1;
-  // 失明降低命中率
-  const blind=(G.statuses[atkKey]||[]).find(s=>s.名称==='失明');
-  if(blind) hitRate*=(1-(blind.数值||0.3));
-  // 闪避上升：目标身上有则命中率再×(1-数值)
-  const _tgtEvUp=(G.statuses[tgtKey]||[]).find(s=>s.名称==='闪避上升');
-  if(_tgtEvUp) hitRate*=(1-(_tgtEvUp.数值||0.55));
-  if(Math.random()>hitRate){
-    const _mFx=getKfWeaponType(kfName,kf);
-    await playAttackFx(_mFx,q(`card-${atkKey}`),q(`card-${tgtKey}`),kf.类别==='绝学'?kfName:null,()=>playSfx(SFX.miss));
-    log(fL(FLAVOR.kfMiss,{atk:atk.name,kf:kfName,tgt:tgt.name}),'l-miss');
-    floatDmg(q(`card-${tgtKey}`),'未中','#888','12px');
-    G.battleLog.push({t:'DODGE',a:atk.name,v:tgt.name,sk:kfName});
-    return;
+  // 对自己施法（轻功/自buff）跳过命中判定
+  if(atkKey!==tgtKey){
+    // 命中判定（武功独立命中率，不受身法影响）
+    let hitRate=kf.命中率??1;
+    // 失明降低命中率
+    const blind=(G.statuses[atkKey]||[]).find(s=>s.名称==='失明');
+    if(blind) hitRate*=(1-(blind.数值||0.3));
+    // 闪避上升：目标身上有则命中率再×(1-数值)
+    const _tgtEvUp=(G.statuses[tgtKey]||[]).find(s=>s.名称==='闪避上升');
+    if(_tgtEvUp) hitRate*=(1-(_tgtEvUp.数值||0.55));
+    if(Math.random()>hitRate){
+      const _mFx=getKfWeaponType(kfName,kf);
+      await playAttackFx(_mFx,q(`card-${atkKey}`),q(`card-${tgtKey}`),kf.类别==='绝学'?kfName:null,()=>playSfx(SFX.miss));
+      log(fL(FLAVOR.kfMiss,{atk:atk.name,kf:kfName,tgt:tgt.name}),'l-miss');
+      floatDmg(q(`card-${tgtKey}`),'未中','#888','12px');
+      G.battleLog.push({t:'DODGE',a:atk.name,v:tgt.name,sk:kfName});
+      return;
+    }
   }
   const base=kf.基础效果值||0;
   const floatR=kf.伤害浮动||[0.9,1.1];
