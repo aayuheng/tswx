@@ -4064,13 +4064,23 @@ function autoAct(key){
   let usedKf=null;
   if(!sealed){
     const hpPct=c.hp.cur/c.hp.max;
+    const avail=[];
     for(const kfName of c.kungfu||[]){
       const kf=KUNGFU_LIB[kfName]; if(!kf||kf.消耗内力===0)continue;
       if(kf.类别==='轻功')continue;
-      if(hpPct>0.15&&kf.影响状态&&kf.影响状态.名称==='回血'&&kf.影响状态.影响回合===0)continue;
       const cd=G.cds[key]?.[kfName]||0;
       if(cd>0||c.mp.cur<kf.消耗内力)continue;
-      usedKf=kfName; break;
+      avail.push({name:kfName,kf});
+    }
+    // 血量<30%时优先回血
+    if(hpPct<0.3){
+      const heal=avail.find(a=>a.kf.影响状态&&a.kf.影响状态.名称==='回血');
+      if(heal) usedKf=heal.name;
+    }
+    // 否则选基础效果值最高的
+    if(!usedKf&&avail.length){
+      const best=avail.reduce((a,b)=>(b.kf.基础效果值||0)>(a.kf.基础效果值||0)?b:a);
+      usedKf=best.name;
     }
     // 检查复制武功
     if(!usedKf){
