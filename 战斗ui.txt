@@ -3851,6 +3851,15 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
           floatDmg(q(`card-${atkKey}`),`+${stolen}内力`,'hsl(140,55%,55%)','14px');
           fxHeal(q(`card-${atkKey}`),'mp');
         }
+      } else if(s.名称==='化去内力'){
+        const ratio=s.数值||0.1;
+        const drained=Math.floor(tgt.mp.cur*ratio);
+        if(drained>0){
+          tgt.mp.cur-=drained;
+          updateCard(tgtKey);
+          log(`${atk.name}「${kfName}」化去 ${tgt.name} ${drained} 内力`,'l-debuff');
+          floatDmg(q(`card-${tgtKey}`),`-${drained}内力`,'hsl(280,50%,55%)','14px');
+        }
       } else if(s.名称==='龙象之力'){
         // 龙象般若功：永久叠加层数，攻击时消耗
         G.statuses[atkKey]=G.statuses[atkKey]||[];
