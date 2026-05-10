@@ -1026,7 +1026,8 @@ function openNpcPanel() {
   } else {
     list.innerHTML = keys.map(k => {
       const n = npcs[k];
-      return `<div class="wx-npc-row" data-npc="${k}"><div class="wx-npc-avatar">${k.charAt(0)}</div><div class="wx-npc-row-info"><div class="wx-npc-row-name">${k}</div><div class="wx-npc-row-sub">${n.姓名?n.姓名+' · ':''}Lv.${n.等级||'?'}</div></div></div>`;
+      const displayName = n.姓名 || k;
+      return `<div class="wx-npc-row" data-npc="${k}"><div class="wx-npc-avatar">${displayName.charAt(0)}</div><div class="wx-npc-row-info"><div class="wx-npc-row-name">${displayName}</div><div class="wx-npc-row-sub">${k !== displayName ? k+' · ':''}Lv.${n.等级||'?'}</div></div></div>`;
     }).join('');
     list.querySelectorAll('.wx-npc-row').forEach(row => {
       row.addEventListener('click', () => {
@@ -1073,9 +1074,10 @@ function showNpcDetail(key) {
     ['领悟功法', kfHtml],
     ['最近交集', `<span>${n.最近交集||'无'}</span>`],
   ];
-  el.innerHTML = `<div class="wx-npc-detail"><div class="wx-npc-detail-name">${key}</div>${n.姓名?`<div class="wx-npc-detail-sub">${n.姓名}</div>`:''}<div class="wx-npc-detail-grid">${rows.map(([k,v]) => `<div class="wx-npc-detail-row"><div class="wx-npc-detail-key">${k}</div><div class="wx-npc-detail-val">${v}</div></div>`).join('')}</div>`
+  const displayName = n.姓名 || key;
+  el.innerHTML = `<div class="wx-npc-detail"><div class="wx-npc-detail-name">${displayName}</div>${key !== displayName?`<div class="wx-npc-detail-sub">${key}</div>`:''}<div class="wx-npc-detail-grid">${rows.map(([k,v]) => `<div class="wx-npc-detail-row"><div class="wx-npc-detail-key">${k}</div><div class="wx-npc-detail-val">${v}</div></div>`).join('')}</div>`
     +`<button class="wx-npc-del" title="删除无关紧要的角色以节省token" data-delkey="${key}">删除角色</button>`
-    +`<div class="wx-npc-del-confirm" id="wx-npc-del-confirm"><div class="wx-npc-del-confirm-msg">确定删除「${key}」吗？</div><div class="wx-npc-del-confirm-btns"><button class="wx-npc-del-yes" data-delkey="${key}">确定</button><button class="wx-npc-del-no">取消</button></div></div>`
+    +`<div class="wx-npc-del-confirm" id="wx-npc-del-confirm"><div class="wx-npc-del-confirm-msg">确定删除「${displayName}」吗？</div><div class="wx-npc-del-confirm-btns"><button class="wx-npc-del-yes" data-delkey="${key}">确定</button><button class="wx-npc-del-no">取消</button></div></div>`
     +`</div>`;
   el.querySelector('.wx-npc-del').addEventListener('click', e => {
     e.currentTarget.style.display='none';
