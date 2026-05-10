@@ -952,19 +952,26 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 (function(){
   const f=window.frameElement; if(!f)return;
   window._wxResizeOwn=true;
-  let _debounce=0;
+  let _debounce=0,_locked=false;
   const resize=()=>{
+    if(_locked)return;
     const b=document.body,h=document.documentElement;
     const ob=b.style.minHeight,oh=h.style.minHeight;
     b.style.minHeight='0';h.style.minHeight='0';
     const sh=b.scrollHeight;
     b.style.minHeight=ob;h.style.minHeight=oh;
-    f.style.height=sh+'px';
+    const cur=parseInt(f.style.height)||0;
+    if(sh>=cur) f.style.height=sh+'px';
   };
-  const debouncedResize=()=>{clearTimeout(_debounce);_debounce=setTimeout(resize,50);};
+  const debouncedResize=()=>{clearTimeout(_debounce);_debounce=setTimeout(resize,80);};
   new MutationObserver(debouncedResize).observe(document.body,{childList:true,subtree:true,attributes:true});
   document.addEventListener('DOMContentLoaded',resize);
   window._wxResize=resize;
+  window._wxResizeLock=()=>{_locked=true;};
+  window._wxResizeUnlock=()=>{_locked=false;f.style.height='0';resize();};
+  // 劫持frameElement让loader的resize脚本跳过
+  Object.defineProperty(window,'frameElement',{get:()=>null,configurable:true});
+  setTimeout(()=>{Object.defineProperty(window,'frameElement',{get:()=>f,configurable:true});},0);
 })();
 
 // ══════════════════════════════════════════════
@@ -2252,7 +2259,9 @@ function renderParty() {
             }
             await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
             showToast(`武学库已刷新（${Object.keys(allKungfuRecord).length}门）`);
+            window._wxResizeLock?.();
             await loadState(); renderParty();
+            window._wxResizeUnlock?.();
           } catch(e) { showToast('刷新失败：' + (e.message || e)); }
         }},
         { label: '取消', cls: '' }
