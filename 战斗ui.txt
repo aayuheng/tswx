@@ -4073,7 +4073,7 @@ function autoAct(key){
       avail.push({name:kfName,kf});
     }
     // 血量<30%时优先回血
-    if(hpPct<0.3){
+    if(hpPct<0.1){
       const heal=avail.find(a=>a.kf.影响状态&&a.kf.影响状态.名称==='回血');
       if(heal) usedKf=heal.name;
     }
@@ -4183,14 +4183,14 @@ function enemyAct(key){
     }
 
     // 自保：自身血量<20%时40%概率优先自回血
-    if(hpPct<0.2&&Math.random()<0.4){
+    if(hpPct<0.2&&Math.random()<0.1){
       const heal=avail.find(a=>_isHeal(a.kf)&&(a.kf.作用范围||'').includes('仅我'));
       if(heal) usedKf=heal.name;
     }
     // 治疗队友：队友血量<20%时40%概率治疗
     if(!usedKf){
       const hurtAlly=es.filter(k=>k!==key&&gA(k)?.alive&&gA(k).hp.cur/gA(k).hp.max<0.2);
-      if(hurtAlly.length&&Math.random()<0.4){
+      if(hurtAlly.length&&Math.random()<0.1){
         const heal=avail.find(a=>_isHeal(a.kf)&&!(a.kf.作用范围||'').includes('仅我'));
         if(heal) usedKf=heal.name;
       }
