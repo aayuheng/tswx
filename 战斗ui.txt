@@ -2413,7 +2413,12 @@ async function fixEnemyStats(mvuData){
 
     // ── 步骤2：基本功补全（目标总值=等级×5）──
     const bsk=e.基本功||{};
-    const targetTotal=lv*5;
+    let targetTotal=lv*5;
+    if(lv>=60) targetTotal+=250;
+    else if(lv>=50) targetTotal+=150;
+    else if(lv>=40) targetTotal+=100;
+    else if(lv>=35) targetTotal+=60;
+    else if(lv>=30) targetTotal+=30;
     let curTotal=0;
     for(const k of BKEYS) curTotal+=(bsk[k]||0);
 
