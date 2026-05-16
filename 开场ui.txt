@@ -2173,6 +2173,25 @@ async function confirmSetup() {
 
     await Mvu.replaceMvuData(data, { type: 'message', message_id: 0 });
 
+    // ── 清空世界书"勿动"条目内容（避免上一次魂穿残留影响新角色）──
+    try {
+      const _p = window.parent;
+      const _getNames = _p.getCharWorldbookNames || window.getCharWorldbookNames;
+      const _getWB    = _p.getWorldbook           || window.getWorldbook;
+      const _repWB    = _p.replaceWorldbook        || window.replaceWorldbook;
+      if (_getNames && _getWB && _repWB) {
+        const _books = _getNames('current');
+        if (_books?.primary) {
+          const _entries = await _getWB(_books.primary);
+          const _target = _entries.find(e => e.name === '勿动');
+          if (_target) {
+            _target.content = '';
+            await _repWB(_books.primary, _entries, { render: 'debounced' });
+          }
+        }
+      }
+    } catch(e) { console.warn('[开场界面] 清空"勿动"跳过:', e.message); }
+
     fillInput();
 
     showSuccess();
