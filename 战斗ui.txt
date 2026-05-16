@@ -3731,6 +3731,8 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
   }
   const bskMul=1+bskVal/150;
   let dmg=base*rand(floatR[0],floatR[1])*attrMul*bskMul;
+  const isHealKf=kf.作用范围&&(kf.作用范围.includes('我方')||kf.作用范围.includes('仅我'));
+  if(!isHealKf) dmg+=getAttr(atkKey,'力量')*1.5;
   // 需要主运内功检查：未满足条件则威力大打折扣
   let _kfNerfed=false;
   if(kf.需要主运内功&&atk.mainKf!==kf.需要主运内功){
@@ -3750,7 +3752,6 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
   }
   if(G._overLvTier>=2&&G.eKeys.includes(atkKey))dmg*=1.7;
   // 攻击上升/下降：最终伤害乘数（治疗类不受影响）
-  const isHealKf=kf.作用范围&&(kf.作用范围.includes('我方')||kf.作用范围.includes('仅我'));
   if(!isHealKf){
     const _atkUp2=(G.statuses[atkKey]||[]).find(s=>s.名称==='攻击上升');
     if(_atkUp2)dmg*=1+(_atkUp2.数值||0.2);
