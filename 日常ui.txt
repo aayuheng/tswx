@@ -2000,10 +2000,10 @@ function _wdRenderDetail(idx){
   // 参数表
   html+='<table style="width:100%;font-size:12px;color:var(--text-main);border-collapse:collapse">';
   html+=_wdRow('基础效果',slot.base,'base',slot,pts);
-  html+=_wdRow('伤害浮动','['+slot.floatRange[0]+', '+slot.floatRange[1]+']','float',slot,pts);
+  html+=_wdRow('伤害浮动','['+Math.round(slot.floatRange[0]*100)+'%, '+Math.round(slot.floatRange[1]*100)+'%]','float',slot,pts);
   html+=_wdRow('属性附加',slot.attr,'attr',slot,pts);
   html+=_wdRow('消耗内力',slot.mp,'mp',slot,pts);
-  html+=_wdRow('命中率',hitFinal.toFixed(2),'hit',slot,pts);
+  html+=_wdRow('命中率',Math.round(hitFinal*100)+'%','hit',slot,pts);
   html+='<tr><td style="padding:6px 0;color:var(--text-dim)">冷却</td><td>'+tier.cd+'回合</td><td></td></tr>';
   // 作用范围
   html+='<tr><td style="padding:6px 0;color:var(--text-dim)">作用范围</td><td>';
@@ -2027,9 +2027,9 @@ function _wdRenderDetail(idx){
     var curProb=Math.min(stCfg.maxProb,st.prob+(st._probUp*(stCfg.probStep||0.02)));
     html+=' <span style="color:var(--gold-l)">'+st.n+'</span>';
     if(!slot.confirmed){
-      html+=' 概率:'+curProb.toFixed(2);
+      html+=' 概率:'+Math.round(curProb*100)+'%';
       if(stCfg.maxTurns){ html+=' 回合:'+(st.turns+(st._turnUp||0)); }
-      if(stCfg.valGrow){ html+=' 数值:'+Math.min(stCfg.maxVal,st.val+(st._valUp*(stCfg.valStep||0.02))).toFixed(3); }
+      if(stCfg.valGrow){ html+=' 数值:'+Math.round(Math.min(stCfg.maxVal,st.val+(st._valUp*(stCfg.valStep||0.02)))*100)+'%'; }
     }
   }
   if(slot.confirmed){
@@ -2046,9 +2046,9 @@ function _wdRenderDetail(idx){
     html+='<div style="display:grid;grid-template-columns:auto 60px 28px auto;gap:6px 8px;align-items:center;font-size:12px">';
     // 武功命中率
     html+='<span style="color:var(--text-dim)">武功命中率</span>';
-    html+='<span id="wd-g-hit" style="color:var(--text-main)">'+growHit.toFixed(2)+'</span>';
+    html+='<span id="wd-g-hit" style="color:var(--text-main)">'+Math.round(growHit*100)+'%</span>';
     if(growHit>=0.98){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
-    else{html+='<button id="wd-hit-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-hit-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+0.1 (1点)</button>';}
+    else{html+='<button id="wd-hit-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-hit-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+10% (1点)</button>';}
     if(slot.statusOn&&slot.status){
       var st2=slot.status;
       var stCfg2=WD_STATUS_CFG[st2.n];
@@ -2056,9 +2056,9 @@ function _wdRenderDetail(idx){
       var growProb=Math.min(stCfg2.maxProb,st2.prob+pUp*(stCfg2.probStep||0.02));
       // 状态附加概率
       html+='<span style="color:var(--text-dim)">状态附加概率</span>';
-      html+='<span id="wd-g-prob" style="color:var(--text-main)">'+growProb.toFixed(2)+'</span>';
+      html+='<span id="wd-g-prob" style="color:var(--text-main)">'+Math.round(growProb*100)+'%</span>';
       if(growProb>=stCfg2.maxProb){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
-      else{html+='<button id="wd-prob-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-prob-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+0.02 (1点)</button>';}
+      else{html+='<button id="wd-prob-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-prob-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+'+Math.round((stCfg2.probStep||0.02)*100)+'% (1点)</button>';}
       // 状态持续回合
       if(stCfg2.maxTurns){
         var growTurns=st2.turns+tUp;
@@ -2071,9 +2071,9 @@ function _wdRenderDetail(idx){
       if(stCfg2.valGrow){
         var growVal=Math.min(stCfg2.maxVal,st2.val+vUp*(stCfg2.valStep||0.02));
         html+='<span style="color:var(--text-dim)">状态效果数值</span>';
-        html+='<span id="wd-g-val" style="color:var(--text-main)">'+growVal.toFixed(3)+'</span>';
+        html+='<span id="wd-g-val" style="color:var(--text-main)">'+Math.round(growVal*100)+'%</span>';
         if(growVal>=stCfg2.maxVal){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
-        else{html+='<button id="wd-val-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-val-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+0.02 (1点)</button>';}
+        else{html+='<button id="wd-val-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-val-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+'+Math.round((stCfg2.valStep||0.02)*100)+'% (1点)</button>';}
       }
     }
     html+='</div>';
@@ -2161,7 +2161,7 @@ function _wdRenderDetail(idx){
     if((pts-_growCost)<1){_wdMsg('悟道点不足');return;}
     _gHitUp++;_growCost+=1;
     var newHit=Math.min(0.98,slot.hit+((slot.upgrades.hit+_gHitUp)*0.1));
-    var el=document.getElementById('wd-g-hit');if(el)el.textContent=newHit.toFixed(2);
+    var el=document.getElementById('wd-g-hit');if(el)el.textContent=Math.round(newHit*100)+'%';
     if(newHit>=0.98)hitBtn.disabled=true;
     _updateGrowCost();
   });
@@ -2173,7 +2173,7 @@ function _wdRenderDetail(idx){
     if((pts-_growCost)<1){_wdMsg('悟道点不足');return;}
     _gProbUp++;_growCost+=1;
     var nv=Math.min(stCfg3.maxProb,slot.status.prob+((slot.status._probUp+_gProbUp)*(stCfg3.probStep||0.02)));
-    var el=document.getElementById('wd-g-prob');if(el)el.textContent=nv.toFixed(2);
+    var el=document.getElementById('wd-g-prob');if(el)el.textContent=Math.round(nv*100)+'%';
     if(nv>=stCfg3.maxProb)probBtn.disabled=true;
     _updateGrowCost();
   });
@@ -2197,7 +2197,7 @@ function _wdRenderDetail(idx){
     if((pts-_growCost)<1){_wdMsg('悟道点不足');return;}
     _gValUp++;_growCost+=1;
     var nv=Math.min(stCfg3.maxVal,slot.status.val+((slot.status._valUp+_gValUp)*(stCfg3.valStep||0.02)));
-    var el=document.getElementById('wd-g-val');if(el)el.textContent=nv.toFixed(3);
+    var el=document.getElementById('wd-g-val');if(el)el.textContent=Math.round(nv*100)+'%';
     if(nv>=stCfg3.maxVal)valBtn.disabled=true;
     _updateGrowCost();
   });
@@ -2207,7 +2207,7 @@ function _wdRenderDetail(idx){
     if(_gHitUp<=0)return;
     _gHitUp--;_growCost-=1;
     var nv=Math.min(0.98,slot.hit+((slot.upgrades.hit+_gHitUp)*0.1));
-    var el=document.getElementById('wd-g-hit');if(el)el.textContent=nv.toFixed(2);
+    var el=document.getElementById('wd-g-hit');if(el)el.textContent=Math.round(nv*100)+'%';
     var upBtn=document.getElementById('wd-hit-up');if(upBtn)upBtn.disabled=false;
     _updateGrowCost();
   });
@@ -2217,7 +2217,7 @@ function _wdRenderDetail(idx){
     _gProbUp--;_growCost-=1;
     var stCfg3=WD_STATUS_CFG[slot.status.n];
     var nv=Math.min(stCfg3.maxProb,slot.status.prob+((slot.status._probUp+_gProbUp)*(stCfg3.probStep||0.02)));
-    var el=document.getElementById('wd-g-prob');if(el)el.textContent=nv.toFixed(2);
+    var el=document.getElementById('wd-g-prob');if(el)el.textContent=Math.round(nv*100)+'%';
     var upBtn=document.getElementById('wd-prob-up');if(upBtn)upBtn.disabled=false;
     _updateGrowCost();
   });
@@ -2237,7 +2237,7 @@ function _wdRenderDetail(idx){
     _gValUp--;_growCost-=1;
     var stCfg3=WD_STATUS_CFG[slot.status.n];
     var nv=Math.min(stCfg3.maxVal,slot.status.val+((slot.status._valUp+_gValUp)*(stCfg3.valStep||0.02)));
-    var el=document.getElementById('wd-g-val');if(el)el.textContent=nv.toFixed(3);
+    var el=document.getElementById('wd-g-val');if(el)el.textContent=Math.round(nv*100)+'%';
     var upBtn=document.getElementById('wd-val-up');if(upBtn)upBtn.disabled=false;
     _updateGrowCost();
   });
