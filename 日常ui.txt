@@ -708,7 +708,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .wx-kungfu-act-btn.forget:hover{background:hsla(0,60%,40%,0.06);border-color:hsla(0,60%,45%,0.4)}
 
 /* ── 弹窗 ── */
-.wx-modal{position:fixed;inset:0;background:hsla(0,0%,0%,0.65);z-index:200;display:none;align-items:flex-end;justify-content:center;
+.wx-modal{position:fixed;inset:0;background:hsla(0,0%,0%,0.65);z-index:600;display:none;align-items:flex-end;justify-content:center;
   padding-bottom:env(safe-area-inset-bottom,0);backdrop-filter:blur(4px)}
 .wx-modal.show{display:flex}
 .wx-modal-box{background:var(--ink-mid);border:1px solid var(--gold-dim);border-radius:var(--radius-l) var(--radius-l) 0 0;
@@ -893,6 +893,60 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
   /* 分隔线 */
   .wx-divider{padding:0 10px}
 }
+/* ── 悟道弹窗 ── */
+.wd-overlay{position:absolute;left:0;right:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:500;
+  display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .35s ease}
+.wd-overlay.open{display:flex;opacity:1}
+.wd-modal{position:relative;width:440px;max-width:calc(100vw - 16px);max-height:92vh;border-radius:20px;
+  background:linear-gradient(165deg,var(--ink-base),var(--ink-deep));
+  border:1px solid var(--gold-dim);box-shadow:0 0 60px rgba(180,150,80,.1),inset 0 1px 0 rgba(255,215,0,.08);
+  overflow:hidden;display:flex;flex-direction:column}
+.wd-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 12px;
+  border-bottom:1px solid var(--gold-line)}
+.wd-title{font-family:'Ma Shan Zheng',serif;font-size:22px;color:var(--gold-l);
+  text-shadow:0 0 12px var(--gold-glow);letter-spacing:3px}
+.wd-points{font-size:13px;color:var(--text-dim);letter-spacing:1px}
+.wd-points b{color:var(--gold-l);font-size:16px;margin:0 2px}
+.wd-close{width:32px;height:32px;border-radius:50%;border:1px solid var(--glass-border);
+  background:var(--glass);color:var(--text-dim);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;transition:all .2s}
+.wd-close:hover{background:var(--gold-glow);color:var(--gold-l)}
+.wd-body{flex:1;overflow-y:auto;padding:16px 20px;scrollbar-width:thin;
+  scrollbar-color:var(--gold-dim) transparent}
+.wd-slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:8px}
+.wd-slot{position:relative;border-radius:14px;padding:20px 12px;text-align:center;cursor:pointer;
+  border:1px solid var(--gold-line);background:var(--glass);
+  transition:all .3s ease;overflow:hidden}
+.wd-slot:hover:not(.locked){border-color:var(--gold-dim);background:var(--gold-glow);
+  box-shadow:0 0 20px var(--gold-glow);transform:translateY(-2px)}
+.wd-slot.locked{opacity:.5;cursor:not-allowed}
+.wd-slot.locked::after{content:attr(data-lock-text);position:absolute;bottom:8px;left:0;right:0;
+  font-size:10px;color:var(--text-dim);letter-spacing:1px}
+.wd-slot.active{border-color:var(--gold);background:var(--gold-glow);
+  box-shadow:0 0 30px rgba(180,150,80,.12)}
+.wd-slot-icon{font-size:20px;margin-bottom:8px;color:var(--gold-l)}
+.wd-slot-name{font-size:13px;color:var(--text-main);letter-spacing:1.5px;margin-bottom:4px}
+.wd-slot-sub{font-size:10px;color:var(--text-dim)}
+.wd-btn-row{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--gold-line)}
+.wd-toast{padding:6px 20px;text-align:center;font-size:11px;color:var(--vermilion-l);opacity:0;transition:opacity .3s;min-height:20px}
+.wd-toast.show{opacity:1}
+.wd-btn{flex:1;padding:10px;border-radius:10px;border:1px solid var(--glass-border);
+  background:var(--glass);color:var(--text-main);font-size:13px;cursor:pointer;
+  letter-spacing:1.5px;transition:all .25s;text-align:center}
+.wd-btn:hover{background:var(--gold-glow);border-color:var(--gold-dim)}
+.wd-btn.primary{border-color:var(--gold-dim);background:var(--gold-glow);color:var(--gold-l)}
+.wd-btn.primary:hover{box-shadow:0 0 16px var(--gold-glow)}
+.wd-btn.danger{border-color:var(--vermilion-glow);color:var(--vermilion-l)}
+.wd-btn.danger:hover{background:var(--vermilion-glow)}
+.wd-btn:disabled{opacity:.4;cursor:not-allowed}
+#wd-name::placeholder,#wd-desc::placeholder{color:var(--text-dim);opacity:.6}
+.wd-cat-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--glass-border);
+  background:var(--glass);color:var(--text-dim);font-size:11px;cursor:pointer;transition:all .2s}
+.wd-cat-btn:hover{border-color:var(--gold-dim);color:var(--gold-l)}
+.wd-cat-btn.active{border-color:var(--gold);color:var(--gold-l);background:var(--gold-glow)}
+.wd-lock-tag{font-size:10px;cursor:pointer;border:none;background:none;color:var(--text-dim);transition:color .2s}
+.wd-lock-tag:hover{color:var(--gold-l)}
+.wd-lock-tag.locked{color:var(--gold);cursor:default}
 </style>
 </head>
 <body>
@@ -1613,6 +1667,689 @@ async function closeDzPanel(){
   try{ await loadState(); renderParty() }catch(e){}
 }
 
+// ── 悟道系统 ──
+const WD_TIERS = [
+  {lv:10, baseOff:150, baseOn:100, cd:1, mpRange:[200,400]},
+  {lv:30, baseOff:300, baseOn:230, cd:2, mpRange:[400,600]},
+  {lv:50, baseOff:410, baseOn:280, cd:3, mpRange:[500,800]}
+];
+const WD_ATTRS = ['无','内功修为','力量','速度','防御力','身法'];
+const WD_CATS = ['拳掌','棍枪','剑','刀','暗器'];
+const WD_STATUSES = ['点穴','眩晕','封穴','中毒','流血'];
+const WD_STATUS_CFG = {
+  '点穴':{turns:1,maxTurns:3,prob:0.1,maxProb:0.4,probStep:0.02,turnCost:2,val:0,valGrow:false,valStep:0},
+  '眩晕':{turns:1,maxTurns:3,prob:0.1,maxProb:0.4,probStep:0.02,turnCost:2,val:0,valGrow:false,valStep:0},
+  '封穴':{turns:2,maxTurns:5,prob:0.1,maxProb:0.44,probStep:0.02,turnCost:2,val:0,valGrow:false,valStep:0},
+  '中毒':{turns:0,maxTurns:0,prob:0.1,maxProb:0.45,probStep:0.05,turnCost:0,val:[0.01,0.1],maxVal:0.33,valGrow:true,valStep:0.02},
+  '流血':{turns:0,maxTurns:0,prob:0.1,maxProb:0.45,probStep:0.05,turnCost:0,val:[0.01,0.1],maxVal:0.33,valGrow:true,valStep:0.02}
+};
+function _wdHash(str){
+  let h=5381;
+  for(let i=0;i<str.length;i++) h=((h<<5)+h+str.charCodeAt(i))>>>0;
+  return h.toString(36);
+}
+function _wdSave(data){
+  data.kfObjs=_wdBuildAllKfObjs(data);
+  const chatId=_getChatId();
+  const json=JSON.stringify(data);
+  const hash=_wdHash(json+'wx_wd_salt_2024');
+  const payload=btoa(unescape(encodeURIComponent(JSON.stringify({d:json,h:hash,v:1}))));
+  localStorage.setItem('wx_'+chatId+'_wudao',payload);
+}
+function _wdBuildAllKfObjs(data){
+  var objs=[];
+  for(var i=0;i<3;i++){
+    var slot=data.slots[i];
+    if(!slot||slot==='绝学位'||!slot.confirmed){objs.push(null);continue;}
+    objs.push(_wdBuildKfObj(slot,i));
+  }
+  return objs;
+}
+function _wdBuildKfObj(slot,tierIdx){
+  var tier=WD_TIERS[tierIdx];
+  var stCfg=slot.status?WD_STATUS_CFG[slot.status.n]:null;
+  var hitFinal=Math.min(0.98,slot.hit+(slot.upgrades.hit*0.1));
+  var req={};req[slot.category]=1;
+  var obj={};
+  obj['名字']=slot.name||'自创武功';
+  obj['类别']='自创';
+  obj['描述']=slot.desc||'';
+  obj['基础效果值']=slot.base;
+  obj['伤害浮动']=slot.floatRange;
+  obj['属性附加影响']=slot.attr;
+  obj['消耗内力']=slot.mp;
+  obj['命中率']=hitFinal;
+  obj['冷却']=[tier.cd,0];
+  obj['等级要求']=tier.lv;
+  obj['作用范围']=slot.range||'敌方单体';
+  obj['基本功要求']=req;
+  obj['基本功和属性增幅']={};
+  obj['影响状态']=null;
+  if(slot.statusOn&&slot.status&&stCfg){
+    var st=slot.status;
+    var prob=Math.min(stCfg.maxProb,st.prob+(st._probUp*(stCfg.probStep||0.1)));
+    var val=st.val+((st._valUp||0)*(stCfg.valStep||0.03));
+    if(stCfg.maxVal)val=Math.min(stCfg.maxVal,val);
+    var turns=st.turns+((st._turnUp||0)*1);
+    if(stCfg.maxTurns)turns=Math.min(stCfg.maxTurns,turns);
+    if(turns===0) turns=1;
+    var stObj={};
+    stObj['名称']=st.n;
+    stObj['成功率']=+prob.toFixed(2);
+    stObj['数值']=+val.toFixed(3);
+    stObj['影响回合']=turns;
+    obj['影响状态']=stObj;
+  }
+  return obj;
+}
+function _wdLoad(){
+  const chatId=_getChatId();
+  const raw=localStorage.getItem('wx_'+chatId+'_wudao');
+  if(!raw) return {ok:true,data:null};
+  try{
+    const decoded=JSON.parse(decodeURIComponent(escape(atob(raw))));
+    if(!decoded.d||!decoded.h) return {ok:false,corrupt:true};
+    const check=_wdHash(decoded.d+'wx_wd_salt_2024');
+    if(check!==decoded.h) return {ok:false,corrupt:true};
+    return {ok:true,data:JSON.parse(decoded.d)};
+  }catch(e){return {ok:false,corrupt:true};}
+}
+function _wdDefault(){ return {spent:0, slots:[null,null,null]}; }
+function _wdGetData(){
+  const r=_wdLoad();
+  if(r.ok) return {data:r.data||_wdDefault(),corrupt:false};
+  return {data:_wdDefault(),corrupt:true};
+}
+function _wdGetPoints(){
+  const lv=_state&&_state.玩家&&_state.玩家.基础信息?_state.玩家.基础信息.等级||1:1;
+  const d=_wdGetData().data;
+  return Math.max(0, lv - d.spent);
+}
+function _wdSpend(dd,n){
+  dd.spent+=n;
+  _wdSave(dd);
+}
+function _wdExtraJxSlots(){
+  try{
+    const d=_wdGetData().data;
+    let extra=0;
+    for(let i=1;i<3;i++){ if(d.slots[i]==='绝学位') extra++; }
+    return extra;
+  }catch(e){return 0;}
+}
+let _wdOverlay=null;
+function _wdPosOverlay(){
+  var f=window.frameElement;
+  var top=0,h=window.innerHeight;
+  if(f){
+    var rect=f.getBoundingClientRect();
+    var pvh=window.parent.innerHeight;
+    top=Math.max(0,-rect.top);
+    var visBottom=Math.min(f.clientHeight,pvh-rect.top);
+    h=Math.max(300,visBottom-top);
+  }
+  _wdOverlay.style.top=top+'px';
+  _wdOverlay.style.height=h+'px';
+}
+function openWdPanel(){
+  const lv=_state&&_state.玩家&&_state.玩家.基础信息?_state.玩家.基础信息.等级||1:1;
+  if(lv<10){showToast('10级后解锁悟道');return;}
+  if(!_wdOverlay){
+    _wdOverlay=document.createElement('div');
+    _wdOverlay.className='wd-overlay';
+    _wdOverlay.innerHTML='<div class="wd-modal"><div class="wd-header"><div><div class="wd-title">悟 道</div><div class="wd-points">悟道点：<b id="wd-pts">0</b></div></div><button class="wd-close">&times;</button></div><div class="wd-body" id="wd-body"></div><div class="wd-toast" id="wd-toast"></div><div class="wd-btn-row" id="wd-btns"></div></div>';
+    document.body.appendChild(_wdOverlay);
+    _wdOverlay.querySelector('.wd-close').addEventListener('click',closeWdPanel);
+    _wdOverlay.addEventListener('click',function(e){if(e.target===_wdOverlay)closeWdPanel();});
+  }
+  _wdPosOverlay();
+  _wdOverlay.classList.add('open');
+  _wdRenderMain();
+}
+function closeWdPanel(){if(_wdOverlay)_wdOverlay.classList.remove('open');}
+var _wdToastTimer=null;
+function _wdMsg(msg,dur){
+  dur=dur||2400;
+  var el=document.getElementById('wd-toast');
+  if(!el)return;
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(_wdToastTimer);
+  _wdToastTimer=setTimeout(function(){el.classList.remove('show');},dur);
+}
+function _wdRenderMain(){
+  var pts=_wdGetPoints();
+  var lv=_state&&_state.玩家&&_state.玩家.基础信息?_state.玩家.基础信息.等级||1:1;
+  document.getElementById('wd-pts').textContent=pts;
+  var body=document.getElementById('wd-body');
+  var btns=document.getElementById('wd-btns');
+  btns.innerHTML='';
+  var d=_wdGetData();
+  var html='';
+  html+='<div class="wd-slot-grid">';
+  for(var i=0;i<3;i++){
+    var tier=WD_TIERS[i];
+    var unlocked=lv>=tier.lv;
+    var slot=d.data.slots[i];
+    var icon='*',name='',sub='';
+    if(!unlocked){icon='x';name=tier.lv+'级解锁';sub='';}
+    else if(!slot){icon='+';name='选择方向';sub='点击进入';}
+    else if(slot==='绝学位'){icon='=';name='绝学位+1';sub='已选择';}
+    else if(slot.confirmed){icon='';name=slot.name;sub='已创建';}
+    else{icon='';name=slot.name||'创建中';sub='未确认';}
+    html+='<div class="wd-slot'+(unlocked?'':' locked')+(slot?' active':'')+'" data-idx="'+i+'" '+(unlocked?'':'data-lock-text="'+tier.lv+'级解锁"')+'>';
+    html+='<div class="wd-slot-icon">'+icon+'</div>';
+    html+='<div class="wd-slot-name">'+name+'</div>';
+    html+='<div class="wd-slot-sub">'+sub+'</div></div>';
+  }
+  html+='</div>';
+  body.innerHTML=html;
+  body.querySelectorAll('.wd-slot:not(.locked)').forEach(function(el){
+    el.addEventListener('click',function(){
+      var idx=+el.dataset.idx;
+      var dd=_wdGetData().data;
+      var slot=dd.slots[idx];
+      if(!slot){
+        if(idx===0){
+          dd.slots[idx]=_wdGenKungfu(idx);
+          _wdSave(dd);
+          _wdRenderDetail(idx);
+        }else{
+          _wdRenderChoice(idx);
+        }
+      }else if(slot==='绝学位'){
+        _wdRenderChoice(idx);
+      }else{
+        _wdRenderDetail(idx);
+      }
+    });
+  });
+}
+function _wdRandFloat(min,max){return min+Math.random()*(max-min);}
+function _wdRandInt(min,max){return Math.floor(min+Math.random()*(max+1-min));}
+function _wdGenFloatRange(){
+  var r=Math.random(), minV, maxV;
+  if(r<0.02){ minV=_wdRandFloat(0.85,0.98); maxV=_wdRandFloat(2.0,2.3); }
+  else{
+    var risk=Math.random();
+    minV=0.98-(0.58*risk)+_wdRandFloat(-0.03,0.03);
+    maxV=1.0+(1.3*risk)+_wdRandFloat(-0.05,0.05);
+    minV=Math.max(0.4,Math.min(0.98,minV));
+    maxV=Math.max(1.0,Math.min(2.3,maxV));
+  }
+  return [+minV.toFixed(2),+maxV.toFixed(2)];
+}
+function _wdGenStatus(){
+  var name=WD_STATUSES[Math.floor(Math.random()*WD_STATUSES.length)];
+  var cfg=WD_STATUS_CFG[name];
+  var prob=cfg.prob;
+  var val=cfg.val;
+  if(Array.isArray(val)) val=+_wdRandFloat(val[0],val[1]).toFixed(3);
+  return {n:name,prob:prob,val:val,turns:cfg.turns||1,_probUp:0,_turnUp:0,_valUp:0};
+}
+function _wdGenKungfu(tierIdx){
+  var tier=WD_TIERS[tierIdx];
+  var base=Math.round(tier.baseOff*_wdRandFloat(0.95,1.05));
+  var floatRange=_wdGenFloatRange();
+  var attr=WD_ATTRS[Math.floor(Math.random()*WD_ATTRS.length)];
+  var mp=_wdRandInt(tier.mpRange[0],tier.mpRange[1]);
+  var hit=+_wdRandFloat(0.7,0.98).toFixed(2);
+  var cat=WD_CATS[Math.floor(Math.random()*WD_CATS.length)];
+  return {
+    confirmed:false, tierIdx:tierIdx, name:'',
+    desc:'',
+    category:cat, statusOn:false,
+    base:base, floatRange:floatRange, attr:attr, mp:mp, hit:hit,
+    range:'敌方单体', status:null,
+    locks:{base:false,float:false,attr:false,mp:false,hit:false,status:false,cat:false},
+    upgrades:{hit:0}
+  };
+}
+function _wdRenderChoice(idx){
+  var body=document.getElementById('wd-body');
+  var btns=document.getElementById('wd-btns');
+  btns.innerHTML='';
+  var dd=_wdGetData().data;
+  var current=dd.slots[idx];
+  var html='<div style="text-align:center;padding:20px 0;color:var(--text-main);font-size:14px;letter-spacing:1px">选择此槽位的用途</div>';
+  html+='<div style="display:flex;flex-direction:column;gap:10px;padding:0 20px">';
+  html+='<button class="wd-btn" id="wd-ch-create">自创武功</button>';
+  html+='<button class="wd-btn" id="wd-ch-jx">增加绝学位（当前上限'+(3+_wdExtraJxSlots())+'）</button>';
+  html+='<button class="wd-btn" id="wd-ch-back">返回</button>';
+  html+='</div>';
+  body.innerHTML=html;
+  document.getElementById('wd-ch-back').addEventListener('click',function(){_wdRenderMain();});
+  document.getElementById('wd-ch-jx').addEventListener('click',function(){
+    dd.slots[idx]='绝学位';
+    _wdSave(dd);
+    _wdMsg('已选择：增加绝学位');
+    _wdRenderMain();
+  });
+  document.getElementById('wd-ch-create').addEventListener('click',function(){
+    if(current==='绝学位'){
+      var newLimit=3+_wdExtraJxSlots()-1;
+      var learned=(_state&&_state.玩家)?_state.玩家.领悟功法||[]:[];
+      var lib=window.parent&&window.parent.WX_GET_ALL_KUNGFU?window.parent.WX_GET_ALL_KUNGFU():{};
+      var jxList=[];
+      for(var j=0;j<learned.length;j++){
+        var kf=lib[learned[j]];
+        if(kf&&kf.类别==='绝学') jxList.push(learned[j]);
+      }
+      if(jxList.length>newLimit){
+        var toForget=jxList.length-newLimit;
+        var acts=[];
+        for(var k=0;k<jxList.length;k++){
+          (function(nm){
+            acts.push({label:'遗忘 '+nm,cls:'danger',cb:function(){
+              callParent('WX_FORGET_KUNGFU',{kungfuName:nm,charKey:'player'}).then(function(){
+                loadState().then(function(){
+                  dd.slots[idx]=_wdGenKungfu(idx);_wdSave(dd);_wdRenderDetail(idx);
+                });
+              });
+            }});
+          })(jxList[k]);
+        }
+        acts.push({label:'取消',cls:'',cb:function(){}});
+        showModal({title:'需要遗忘绝学',text:'切换后绝学上限变为'+newLimit+'，需遗忘'+toForget+'门绝学',actions:acts});
+        return;
+      }
+    }
+    dd.slots[idx]=_wdGenKungfu(idx);
+    _wdSave(dd);
+    _wdRenderDetail(idx);
+  });
+}
+function _wdRenderDetail(idx){
+  var nameEl=document.getElementById('wd-name');
+  var descEl=document.getElementById('wd-desc');
+  if(nameEl||descEl){
+    var _dd=_wdGetData().data;var _sl=_dd.slots[idx];
+    if(_sl&&_sl!=='绝学位'){
+      if(nameEl) _sl.name=nameEl.value.slice(0,12);
+      if(descEl) _sl.desc=descEl.value;
+      _dd.slots[idx]=_sl;_wdSave(_dd);
+    }
+  }
+  var body=document.getElementById('wd-body');
+  var btns=document.getElementById('wd-btns');
+  var dd=_wdGetData().data;
+  var slot=dd.slots[idx];
+  if(!slot||slot==='绝学位'){slot=_wdGenKungfu(idx);dd.slots[idx]=slot;_wdSave(dd);}
+  var tier=WD_TIERS[idx];
+  var pts=_wdGetPoints();
+  var hitFinal=Math.min(0.98,slot.hit+(slot.upgrades.hit*0.1));
+  var rangeLbls=['敌方单体','敌方相邻','敌方群体'];
+  var rangeCosts=[0,3,5];
+  var curRi=rangeLbls.indexOf(slot.range);if(curRi<0)curRi=0;
+  var html='';
+  if(slot.confirmed){
+    html+='<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--text-dim);margin-bottom:4px;display:block">武功命名：</label><div style="padding:8px 12px;font-size:14px;color:var(--text-main)">'+_wdEsc(slot.name)+'</div></div>';
+  }else{
+    html+='<div style="margin-bottom:12px"><label style="font-size:11px;color:var(--text-dim);margin-bottom:4px;display:block">武功命名：</label><input id="wd-name" value="'+_wdEsc(slot.name)+'" placeholder="请输入武功名称" maxlength="12" style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid var(--gold-line);background:var(--glass);color:var(--text-main);font-size:14px;outline:none"></div>';
+  }
+  // 类别选择
+  html+='<div style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">';
+  if(slot.confirmed){
+    html+='<button class="wd-cat-btn active" disabled>'+slot.category+'</button>';
+  }else{
+    for(var ci=0;ci<WD_CATS.length;ci++){
+      var ac=WD_CATS[ci]===slot.category?' active':'';
+      html+='<button class="wd-cat-btn'+ac+'" data-cat="'+WD_CATS[ci]+'">'+WD_CATS[ci]+'</button>';
+    }
+  }
+  html+='</div>';
+  // 参数表
+  html+='<table style="width:100%;font-size:12px;color:var(--text-main);border-collapse:collapse">';
+  html+=_wdRow('基础效果',slot.base,'base',slot,pts);
+  html+=_wdRow('伤害浮动','['+slot.floatRange[0]+', '+slot.floatRange[1]+']','float',slot,pts);
+  html+=_wdRow('属性附加',slot.attr,'attr',slot,pts);
+  html+=_wdRow('消耗内力',slot.mp,'mp',slot,pts);
+  html+=_wdRow('命中率',hitFinal.toFixed(2),'hit',slot,pts);
+  html+='<tr><td style="padding:6px 0;color:var(--text-dim)">冷却</td><td>'+tier.cd+'回合</td><td></td></tr>';
+  // 作用范围
+  html+='<tr><td style="padding:6px 0;color:var(--text-dim)">作用范围</td><td>';
+  for(var ri=0;ri<3;ri++){
+    var riActive=ri===curRi;
+    var riCan=!slot.confirmed||(ri<=curRi)||(ri===curRi+1&&pts>=rangeCosts[ri]);
+    var riStyle=riActive?'border-color:var(--gold);color:var(--gold-l);background:var(--gold-glow)':(!riCan?'opacity:.4;cursor:not-allowed':'');
+    html+='<button class="wd-rng-btn" data-ri="'+ri+'" style="padding:3px 8px;border-radius:5px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;margin-right:4px;'+riStyle+'">'+rangeLbls[ri].replace('敌方','')+(rangeCosts[ri]&&!riActive?'('+rangeCosts[ri]+'点)':'')+'</button>';
+  }
+  html+='</td><td></td></tr>';
+  // 状态影响
+  html+='<tr><td style="padding:6px 0;color:var(--text-dim)">状态影响</td><td>';
+  if(slot.confirmed){
+    html+='<span style="font-size:10px;color:var(--text-dim)">'+(slot.statusOn?'开启':'关闭')+'</span>';
+  }else{
+    html+='<button id="wd-st-toggle" style="padding:3px 10px;border-radius:5px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer">'+(slot.statusOn?'开启':'关闭')+'</button>';
+  }
+  if(slot.statusOn&&slot.status){
+    var st=slot.status;
+    var stCfg=WD_STATUS_CFG[st.n];
+    var curProb=Math.min(stCfg.maxProb,st.prob+(st._probUp*(stCfg.probStep||0.02)));
+    html+=' <span style="color:var(--gold-l)">'+st.n+'</span>';
+    if(!slot.confirmed){
+      html+=' 概率:'+curProb.toFixed(2);
+      if(stCfg.maxTurns){ html+=' 回合:'+(st.turns+(st._turnUp||0)); }
+      if(stCfg.valGrow){ html+=' 数值:'+Math.min(stCfg.maxVal,st.val+(st._valUp*(stCfg.valStep||0.02))).toFixed(3); }
+    }
+  }
+  if(slot.confirmed){
+    html+='</td><td></td></tr>';
+  }else{
+    html+='</td><td>'+(slot.locks.status?'<button class="wd-lock-tag locked" data-key="status">[已锁]</button>':'<button class="wd-lock-tag" data-key="status">[锁定1点]</button>')+'</td></tr>';
+  }
+  html+='</table>';
+  // 确认后的成长面板
+  if(slot.confirmed){
+    var growHit=Math.min(0.98,slot.hit+(slot.upgrades.hit*0.1));
+    html+='<div style="margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--glass)">';
+    html+='<div style="font-size:11px;color:var(--gold-l);margin-bottom:10px;letter-spacing:1px">成长</div>';
+    html+='<div style="display:grid;grid-template-columns:auto 60px 28px auto;gap:6px 8px;align-items:center;font-size:12px">';
+    // 武功命中率
+    html+='<span style="color:var(--text-dim)">武功命中率</span>';
+    html+='<span id="wd-g-hit" style="color:var(--text-main)">'+growHit.toFixed(2)+'</span>';
+    if(growHit>=0.98){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
+    else{html+='<button id="wd-hit-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-hit-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+0.1 (1点)</button>';}
+    if(slot.statusOn&&slot.status){
+      var st2=slot.status;
+      var stCfg2=WD_STATUS_CFG[st2.n];
+      var pUp=st2._probUp||0, tUp=st2._turnUp||0, vUp=st2._valUp||0;
+      var growProb=Math.min(stCfg2.maxProb,st2.prob+pUp*(stCfg2.probStep||0.02));
+      // 状态附加概率
+      html+='<span style="color:var(--text-dim)">状态附加概率</span>';
+      html+='<span id="wd-g-prob" style="color:var(--text-main)">'+growProb.toFixed(2)+'</span>';
+      if(growProb>=stCfg2.maxProb){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
+      else{html+='<button id="wd-prob-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-prob-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+0.02 (1点)</button>';}
+      // 状态持续回合
+      if(stCfg2.maxTurns){
+        var growTurns=st2.turns+tUp;
+        html+='<span style="color:var(--text-dim)">状态持续回合</span>';
+        html+='<span id="wd-g-turn" style="color:var(--text-main)">'+growTurns+'</span>';
+        if(growTurns>=stCfg2.maxTurns){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
+        else{html+='<button id="wd-turn-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-turn-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+1 (2点)</button>';}
+      }
+      // 状态效果数值
+      if(stCfg2.valGrow){
+        var growVal=Math.min(stCfg2.maxVal,st2.val+vUp*(stCfg2.valStep||0.02));
+        html+='<span style="color:var(--text-dim)">状态效果数值</span>';
+        html+='<span id="wd-g-val" style="color:var(--text-main)">'+growVal.toFixed(3)+'</span>';
+        if(growVal>=stCfg2.maxVal){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
+        else{html+='<button id="wd-val-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-val-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+0.02 (1点)</button>';}
+      }
+    }
+    html+='</div>';
+    html+='<div style="font-size:10px;color:var(--text-dim);margin-top:8px" id="wd-grow-cost">预计花费：0 悟道点</div>';
+    html+='</div>';
+  }
+  // 描述
+  if(slot.confirmed){
+    html+='<div style="margin-top:10px"><label style="font-size:11px;color:var(--text-dim);margin-bottom:4px;display:block">武功描述：</label><div style="padding:6px 10px;font-size:11px;color:var(--text-dim)">'+_wdEsc(slot.desc||'无')+'</div></div>';
+  }else{
+    html+='<div style="margin-top:10px"><label style="font-size:11px;color:var(--text-dim);margin-bottom:4px;display:block">武功描述：</label><textarea id="wd-desc" placeholder="请输入武功描述" style="width:100%;padding:6px 10px;border-radius:6px;border:1px solid var(--gold-line);background:var(--glass);color:var(--text-main);font-size:11px;resize:none;height:40px;outline:none">'+_wdEsc(slot.desc)+'</textarea></div>';
+  }
+  body.innerHTML=html;
+  document.getElementById('wd-pts').textContent=pts;
+  // 按钮区
+  if(!slot.confirmed){
+    btns.innerHTML='<button class="wd-btn" id="wd-rand">随机</button><button class="wd-btn primary" id="wd-confirm">确认创建</button><button class="wd-btn danger" id="wd-reset">重置</button>'+(idx>0?'<button class="wd-btn" id="wd-to-jx">切换为绝学位</button>':'')+'<button class="wd-btn" id="wd-back">返回</button>';
+  }else{
+    btns.innerHTML='<button class="wd-btn primary" id="wd-grow-confirm">确认成长</button><button class="wd-btn danger" id="wd-reset">删除此自创</button>'+(idx>0?'<button class="wd-btn" id="wd-to-jx">切换为绝学位</button>':'')+'<button class="wd-btn" id="wd-back">返回</button>';
+  }
+  // 事件绑定
+  document.getElementById('wd-back').addEventListener('click',function(){
+    _wdSaveSlot(dd,idx); _wdRenderMain();
+  });
+  // 类别按钮
+  body.querySelectorAll('.wd-cat-btn').forEach(function(el){
+    el.addEventListener('click',function(){
+      if(slot.locks.cat)return;
+      slot.category=el.dataset.cat;
+      dd.slots[idx]=slot;_wdSave(dd);_wdRenderDetail(idx);
+    });
+  });
+  // 锁定按钮（点击锁定/解锁）
+  body.querySelectorAll('.wd-lock-tag').forEach(function(el){
+    el.addEventListener('click',function(){
+      var key=el.dataset.key;
+      if(slot.locks[key]){
+        slot.locks[key]=false;
+        dd.spent=Math.max(0,dd.spent-1);
+        dd.slots[idx]=slot;_wdSave(dd);_wdRenderDetail(idx);
+      }else{
+        if(pts<1){_wdMsg('悟道点不足');return;}
+        slot.locks[key]=true;dd.spent++;
+        dd.slots[idx]=slot;_wdSave(dd);_wdRenderDetail(idx);
+      }
+    });
+  });
+  // 作用范围
+  body.querySelectorAll('.wd-rng-btn').forEach(function(el){
+    el.addEventListener('click',function(){
+      var ri=+el.dataset.ri;
+      if(ri===curRi)return;
+      var oldCost=rangeCosts[curRi];
+      var newCost=rangeCosts[ri];
+      var diff=newCost-oldCost;
+      if(diff>0&&pts<diff){_wdMsg('悟道点不足');return;}
+      dd.spent+=diff;
+      slot.range=rangeLbls[ri];
+      dd.slots[idx]=slot;_wdSave(dd);_wdRenderDetail(idx);
+    });
+  });
+  // 状态开关
+  var stBtn=document.getElementById('wd-st-toggle');
+  if(stBtn) stBtn.addEventListener('click',function(){
+    if(slot.locks.status)return;
+    slot.statusOn=!slot.statusOn;
+    if(slot.statusOn&&!slot.status) slot.status=_wdGenStatus();
+    if(!slot.locks.base){
+      slot.base=Math.round((slot.statusOn?tier.baseOn:tier.baseOff)*_wdRandFloat(0.95,1.05));
+    }
+    dd.slots[idx]=slot;_wdSave(dd);_wdRenderDetail(idx);
+  });
+  // 成长预览（确认后）
+  var _growCost=0;
+  var _gProbUp=0,_gTurnUp=0,_gValUp=0,_gHitUp=0;
+  function _updateGrowCost(){
+    var el=document.getElementById('wd-grow-cost');
+    if(el) el.textContent='预计花费：'+_growCost+' 悟道点';
+    document.getElementById('wd-pts').textContent=(pts-_growCost);
+  }
+  var hitBtn=document.getElementById('wd-hit-up');
+  if(hitBtn) hitBtn.addEventListener('click',function(){
+    var curHit=Math.min(0.98,slot.hit+((slot.upgrades.hit+_gHitUp)*0.1));
+    if(curHit>=0.98)return;
+    if((pts-_growCost)<1){_wdMsg('悟道点不足');return;}
+    _gHitUp++;_growCost+=1;
+    var newHit=Math.min(0.98,slot.hit+((slot.upgrades.hit+_gHitUp)*0.1));
+    var el=document.getElementById('wd-g-hit');if(el)el.textContent=newHit.toFixed(2);
+    if(newHit>=0.98)hitBtn.disabled=true;
+    _updateGrowCost();
+  });
+  var probBtn=document.getElementById('wd-prob-up');
+  if(probBtn&&slot.status) probBtn.addEventListener('click',function(){
+    var stCfg3=WD_STATUS_CFG[slot.status.n];
+    var cur=Math.min(stCfg3.maxProb,slot.status.prob+((slot.status._probUp+_gProbUp)*(stCfg3.probStep||0.02)));
+    if(cur>=stCfg3.maxProb)return;
+    if((pts-_growCost)<1){_wdMsg('悟道点不足');return;}
+    _gProbUp++;_growCost+=1;
+    var nv=Math.min(stCfg3.maxProb,slot.status.prob+((slot.status._probUp+_gProbUp)*(stCfg3.probStep||0.02)));
+    var el=document.getElementById('wd-g-prob');if(el)el.textContent=nv.toFixed(2);
+    if(nv>=stCfg3.maxProb)probBtn.disabled=true;
+    _updateGrowCost();
+  });
+  var turnBtn=document.getElementById('wd-turn-up');
+  if(turnBtn&&slot.status) turnBtn.addEventListener('click',function(){
+    var stCfg3=WD_STATUS_CFG[slot.status.n];
+    var cur=slot.status.turns+((slot.status._turnUp||0)+_gTurnUp);
+    if(cur>=stCfg3.maxTurns)return;
+    if((pts-_growCost)<(stCfg3.turnCost||2)){_wdMsg('悟道点不足');return;}
+    _gTurnUp++;_growCost+=(stCfg3.turnCost||2);
+    var nv=slot.status.turns+((slot.status._turnUp||0)+_gTurnUp);
+    var el=document.getElementById('wd-g-turn');if(el)el.textContent=nv;
+    if(nv>=stCfg3.maxTurns)turnBtn.disabled=true;
+    _updateGrowCost();
+  });
+  var valBtn=document.getElementById('wd-val-up');
+  if(valBtn&&slot.status) valBtn.addEventListener('click',function(){
+    var stCfg3=WD_STATUS_CFG[slot.status.n];
+    var cur=Math.min(stCfg3.maxVal,slot.status.val+((slot.status._valUp+_gValUp)*(stCfg3.valStep||0.02)));
+    if(cur>=stCfg3.maxVal)return;
+    if((pts-_growCost)<1){_wdMsg('悟道点不足');return;}
+    _gValUp++;_growCost+=1;
+    var nv=Math.min(stCfg3.maxVal,slot.status.val+((slot.status._valUp+_gValUp)*(stCfg3.valStep||0.02)));
+    var el=document.getElementById('wd-g-val');if(el)el.textContent=nv.toFixed(3);
+    if(nv>=stCfg3.maxVal)valBtn.disabled=true;
+    _updateGrowCost();
+  });
+  // 减按钮
+  var hitDown=document.getElementById('wd-hit-down');
+  if(hitDown) hitDown.addEventListener('click',function(){
+    if(_gHitUp<=0)return;
+    _gHitUp--;_growCost-=1;
+    var nv=Math.min(0.98,slot.hit+((slot.upgrades.hit+_gHitUp)*0.1));
+    var el=document.getElementById('wd-g-hit');if(el)el.textContent=nv.toFixed(2);
+    var upBtn=document.getElementById('wd-hit-up');if(upBtn)upBtn.disabled=false;
+    _updateGrowCost();
+  });
+  var probDown=document.getElementById('wd-prob-down');
+  if(probDown&&slot.status) probDown.addEventListener('click',function(){
+    if(_gProbUp<=0)return;
+    _gProbUp--;_growCost-=1;
+    var stCfg3=WD_STATUS_CFG[slot.status.n];
+    var nv=Math.min(stCfg3.maxProb,slot.status.prob+((slot.status._probUp+_gProbUp)*(stCfg3.probStep||0.02)));
+    var el=document.getElementById('wd-g-prob');if(el)el.textContent=nv.toFixed(2);
+    var upBtn=document.getElementById('wd-prob-up');if(upBtn)upBtn.disabled=false;
+    _updateGrowCost();
+  });
+  var turnDown=document.getElementById('wd-turn-down');
+  if(turnDown&&slot.status) turnDown.addEventListener('click',function(){
+    if(_gTurnUp<=0)return;
+    var stCfg3=WD_STATUS_CFG[slot.status.n];
+    _gTurnUp--;_growCost-=(stCfg3.turnCost||2);
+    var nv=slot.status.turns+((slot.status._turnUp||0)+_gTurnUp);
+    var el=document.getElementById('wd-g-turn');if(el)el.textContent=nv;
+    var upBtn=document.getElementById('wd-turn-up');if(upBtn)upBtn.disabled=false;
+    _updateGrowCost();
+  });
+  var valDown=document.getElementById('wd-val-down');
+  if(valDown&&slot.status) valDown.addEventListener('click',function(){
+    if(_gValUp<=0)return;
+    _gValUp--;_growCost-=1;
+    var stCfg3=WD_STATUS_CFG[slot.status.n];
+    var nv=Math.min(stCfg3.maxVal,slot.status.val+((slot.status._valUp+_gValUp)*(stCfg3.valStep||0.02)));
+    var el=document.getElementById('wd-g-val');if(el)el.textContent=nv.toFixed(3);
+    var upBtn=document.getElementById('wd-val-up');if(upBtn)upBtn.disabled=false;
+    _updateGrowCost();
+  });
+  // 确认成长
+  var growCfmBtn=document.getElementById('wd-grow-confirm');
+  if(growCfmBtn) growCfmBtn.addEventListener('click',function(){
+    if(_growCost===0){_wdMsg('没有需要确认的成长');return;}
+    slot.upgrades.hit+=_gHitUp;
+    if(slot.status){
+      slot.status._probUp+=_gProbUp;
+      slot.status._turnUp+=_gTurnUp;
+      slot.status._valUp+=_gValUp;
+    }
+    dd.spent+=_growCost;
+    dd.slots[idx]=slot;_wdSave(dd);
+    try{window.parent.WX_WUDAO_RECORD({action:'grow',kungfuName:slot.name});}catch(e){}
+    _wdMsg('成长确认，花费'+_growCost+'悟道点');
+    _wdRenderDetail(idx);
+  });
+  // 随机
+  var randBtn=document.getElementById('wd-rand');
+  if(randBtn) randBtn.addEventListener('click',function(){
+    _wdSaveSlot(dd,idx);
+    var newKf=_wdGenKungfu(idx);
+    newKf.confirmed=slot.confirmed; newKf.upgrades=slot.upgrades;
+    if(slot.locks.status){
+      newKf.statusOn=slot.statusOn;newKf.status=slot.status;
+      if(slot.statusOn&&!slot.locks.base) newKf.base=Math.round(tier.baseOn*_wdRandFloat(0.95,1.05));
+    }
+    else if(slot.statusOn){newKf.statusOn=true;newKf.status=_wdGenStatus();newKf.base=Math.round(tier.baseOn*_wdRandFloat(0.95,1.05));}
+    if(slot.locks.base) newKf.base=slot.base;
+    if(slot.locks.float) newKf.floatRange=slot.floatRange;
+    if(slot.locks.attr) newKf.attr=slot.attr;
+    if(slot.locks.mp) newKf.mp=slot.mp;
+    if(slot.locks.hit) newKf.hit=slot.hit;
+    newKf.category=slot.category;
+    newKf.locks=JSON.parse(JSON.stringify(slot.locks));
+    newKf.name=slot.name; newKf.desc=slot.desc; newKf.range=slot.range;
+    dd.slots[idx]=newKf; _wdSave(dd); _wdRenderDetail(idx);
+  });
+  // 确认
+  var cfmBtn=document.getElementById('wd-confirm');
+  if(cfmBtn) cfmBtn.addEventListener('click',function(){
+    _wdSaveSlot(dd,idx);
+    if(!slot.name||!slot.name.trim()){_wdMsg('请先输入武功名称');return;}
+    var lib=window.parent&&window.parent.WX_GET_ALL_KUNGFU?window.parent.WX_GET_ALL_KUNGFU():{};
+    if(lib[slot.name]){_wdMsg('武功名称与已有武功重复，请换一个');return;}
+    slot.confirmed=true; dd.slots[idx]=slot; _wdSave(dd);
+    try{window.parent.WX_WUDAO_RECORD({action:'create',kungfuName:slot.name});}catch(e){}
+    _wdMsg('武功创建成功');_wdRenderDetail(idx);
+  });
+  // 重置/删除
+  var rstBtn=document.getElementById('wd-reset');
+  if(rstBtn) rstBtn.addEventListener('click',function(){
+    var refund=Object.values(slot.locks).filter(Boolean).length;
+    refund+=slot.upgrades.hit;
+    if(slot.status){
+      refund+=(slot.status._probUp||0);
+      refund+=(slot.status._turnUp||0)*(WD_STATUS_CFG[slot.status.n].turnCost||2);
+      refund+=(slot.status._valUp||0);
+    }
+    if(curRi>=1) refund+=rangeCosts[curRi];
+    var msg=slot.confirmed?'确定删除此自创武功？':'确定重置？';
+    msg+=' 将退还'+refund+'悟道点';
+    showModal({title:slot.confirmed?'删除自创武功':'重置',text:msg,
+      actions:[{label:'确认',cls:'danger',cb:function(){
+        if(slot.confirmed){try{window.parent.WX_WUDAO_RECORD({action:'delete',kungfuName:slot.name});}catch(e){}}
+        dd.spent=Math.max(0,dd.spent-refund);
+        dd.slots[idx]=null; _wdSave(dd);
+        _wdMsg('已'+(slot.confirmed?'删除':'重置')+'，退还'+refund+'悟道点');
+        if(idx===0) _wdRenderMain(); else _wdRenderChoice(idx);
+      }},{label:'取消',cls:'',cb:function(){}}]
+    });
+  });
+  // 切换为绝学位
+  var jxBtn=document.getElementById('wd-to-jx');
+  if(jxBtn) jxBtn.addEventListener('click',function(){
+    var refund=Object.values(slot.locks).filter(Boolean).length;
+    refund+=slot.upgrades.hit;
+    if(slot.status){
+      refund+=(slot.status._probUp||0);
+      refund+=(slot.status._turnUp||0)*(WD_STATUS_CFG[slot.status.n].turnCost||2);
+      refund+=(slot.status._valUp||0);
+    }
+    if(curRi>=1) refund+=rangeCosts[curRi];
+    if(slot.confirmed){try{window.parent.WX_WUDAO_RECORD({action:'delete',kungfuName:slot.name});}catch(e){}}
+    dd.spent=Math.max(0,dd.spent-refund);
+    dd.slots[idx]='绝学位'; _wdSave(dd);
+    _wdMsg('已切换为绝学位，退还'+refund+'悟道点');
+    _wdRenderMain();
+  });
+}
+function _wdRow(label,val,key,slot,pts){
+  if(slot.confirmed) return '<tr><td style="padding:6px 0;color:var(--text-dim)">'+label+'</td><td>'+val+'</td><td></td></tr>';
+  var lockHtml=slot.locks[key]?'<button class="wd-lock-tag locked" data-key="'+key+'">[已锁]</button>':'<button class="wd-lock-tag" data-key="'+key+'">[锁定1点]</button>';
+  return '<tr><td style="padding:6px 0;color:var(--text-dim)">'+label+'</td><td>'+val+'</td><td>'+lockHtml+'</td></tr>';
+}
+function _wdSaveSlot(dd,idx){
+  var nameEl=document.getElementById('wd-name');
+  var descEl=document.getElementById('wd-desc');
+  var slot=dd.slots[idx];
+  if(slot&&slot!=='绝学位'){
+    if(nameEl) slot.name=nameEl.value.slice(0,12);
+    if(descEl) slot.desc=descEl.value;
+    dd.slots[idx]=slot; _wdSave(dd);
+  }
+}
+function _wdEsc(s){
+  if(!s)return '';
+  return String(s).replace(/&/g,String.fromCharCode(38)+'amp;').replace(/</g,String.fromCharCode(38)+'lt;').replace(/>/g,String.fromCharCode(38)+'gt;').replace(/"/g,String.fromCharCode(38)+'quot;');
+}
+
 // ── 每日机缘面板 ──
 let _dailyOverlay = null, _dailyPanel = null;
 function _ensureDailyDom() {
@@ -2131,14 +2868,17 @@ function renderParty() {
   c.innerHTML = '';
   // 工具栏：角色交集按钮 + 金钱
   const money = _state.玩家?.金钱 ?? 0;
+  const moneyStr = money>=1000 ? (Math.floor(money/1000)+'两'+(money%1000?money%1000+'文':'')) : money+'文';
+  const _wdLv = _state?.玩家?.基础信息?.等级||1;
   const toolbar = document.createElement('div');
   toolbar.className = 'wx-toolbar';
-  toolbar.innerHTML = `<button class="wx-npc-btn" id="wx-npc-open">角色 · 交集</button><button class="wx-npc-btn" id="wx-daily-open">每日机缘</button><button class="wx-npc-btn" id="wx-jh-open">江湖事迹</button><button class="wx-npc-btn" id="wx-dz-open">打坐调息</button>${_battleAlert?'<button class="wx-battle-alert" id="wx-battle-go"><svg viewBox="0 0 24 24"><path d="M14.5 3L12 1L9.5 3L6.5 2L5.5 5L2.5 5.5L3 8.5L1 11L3 13.5L2 16.5L5 17.5L5.5 20.5L8.5 20L11 22L13.5 20L16.5 21L17.5 18L20.5 17.5L20 14.5L22 12L20 9.5L21 6.5L18 5.5L17.5 2.5Z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>开始战斗</button>':''}<div class="wx-money"><svg class="wx-money-icon" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><rect x="10" y="10" width="4" height="4" rx="0.5"/><line x1="12" y1="2" x2="12" y2="10"/><line x1="12" y1="14" x2="12" y2="22"/><line x1="2" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="22" y2="12"/></svg><span class="wx-money-label">金钱</span><span class="wx-money-val">${money}</span></div>`;
+  toolbar.innerHTML = `<button class="wx-npc-btn" id="wx-npc-open">角色 · 交集</button><button class="wx-npc-btn" id="wx-daily-open">每日机缘</button><button class="wx-npc-btn" id="wx-jh-open">江湖事迹</button><button class="wx-npc-btn" id="wx-dz-open">打坐调息</button>${_wdLv>=10?'<button class="wx-npc-btn" id="wx-wd-open">悟道</button>':''}${_battleAlert?'<button class="wx-battle-alert" id="wx-battle-go"><svg viewBox="0 0 24 24"><path d="M14.5 3L12 1L9.5 3L6.5 2L5.5 5L2.5 5.5L3 8.5L1 11L3 13.5L2 16.5L5 17.5L5.5 20.5L8.5 20L11 22L13.5 20L16.5 21L17.5 18L20.5 17.5L20 14.5L22 12L20 9.5L21 6.5L18 5.5L17.5 2.5Z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>开始战斗</button>':''}<div class="wx-money"><svg class="wx-money-icon" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><rect x="10" y="10" width="4" height="4" rx="0.5"/><line x1="12" y1="2" x2="12" y2="10"/><line x1="12" y1="14" x2="12" y2="22"/><line x1="2" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="22" y2="12"/></svg><span class="wx-money-label">金钱</span><span class="wx-money-val">${moneyStr}</span></div>`;
   c.appendChild(toolbar);
   toolbar.querySelector('#wx-npc-open').addEventListener('click', openNpcPanel);
   toolbar.querySelector('#wx-daily-open').addEventListener('click', openDailyPanel);
   toolbar.querySelector('#wx-jh-open').addEventListener('click', openJhPanel);
   toolbar.querySelector('#wx-dz-open').addEventListener('click', openDzPanel);
+  toolbar.querySelector('#wx-wd-open')?.addEventListener('click', openWdPanel);
   if(_battleAlert){
     toolbar.querySelector('#wx-battle-go').addEventListener('click', async()=>{
       _battleAlert=false;
@@ -2563,7 +3303,8 @@ function buildKungfuPanel(charKey, char) {
   const learned = char.领悟功法||[];
   const mainKf = char.主运内功||'';
   // 统计各类别数量
-  const KUNGFU_LIMITS = { 绝学: 3, 普通: 4, 内功: 3, 轻功: 3 };
+  var _jxExtra=0;try{_jxExtra=_wdExtraJxSlots();}catch(e){}
+  const KUNGFU_LIMITS = { 绝学: 3+_jxExtra, 普通: 4, 内功: 3, 轻功: 3 };
   const catCount = { 绝学: 0, 普通: 0, 内功: 0, 轻功: 0 };
   learned.forEach(n => { const c = window.parent?.WX_GET_KUNGFU?.(n)?.类别 || '普通'; catCount[c] = (catCount[c]||0) + 1; });
 
