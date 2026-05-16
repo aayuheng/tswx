@@ -3816,6 +3816,14 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
   // 状态附加（名称为"无"时跳过；需要主运内功但未满足时跳过）
   if(kf.影响状态&&kf.影响状态.名称&&kf.影响状态.名称!=='无'&&tgt.alive&&!_kfNerfed){
     const s=kf.影响状态;
+    // 即时生效（影响回合===0）
+    if(s.影响回合===0&&s.名称==='破军'){
+      const isAtkPlayer=G.pKeys.includes(atkKey);
+      const enemyCount=(isAtkPlayer?aliveE():aliveP()).length||1;
+      const pjDmg=Math.floor(300*rand(0.7,1.5)*enemyCount);
+      if(pjDmg>0){await new Promise(r=>setTimeout(r,spd(500)));dealDmg(tgtKey,pjDmg);log(`${atk.name}「${kfName}」破军 → ${tgt.name} -${pjDmg}`,'l-crit');floatDmg(q(`card-${tgtKey}`),`破军 -${pjDmg}`,'hsl(42,80%,60%)','18px');G.battleLog.push({t:'KF',a:atk.name,v:tgt.name,sk:kfName+'·破军',d:pjDmg});}
+      return;
+    }
     // 即时生效（影响回合===0）：回血/回内直接结算，不挂持续状态
     if(s.影响回合===0&&(s.名称==='回血'||s.名称==='回内')){
       if(Math.random()<(s.成功率||0)){
