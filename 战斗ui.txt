@@ -470,6 +470,7 @@ body {
 .kf-type.绝学 { background:hsla(355,62%,44%,0.12); color:hsl(355,65%,60%); border:1px solid hsla(355,62%,44%,0.25); }
 .kf-type.轻功 { background:hsla(220,52%,52%,0.12); color:hsl(220,60%,65%); border:1px solid hsla(220,52%,52%,0.25); }
 .kf-type.内功 { background:hsla(158,42%,36%,0.12); color:hsl(158,50%,55%); border:1px solid hsla(158,42%,36%,0.25); }
+.kf-type.自创 { background:hsla(190,50%,60%,0.12); color:hsl(190,70%,78%); border:1px solid hsla(190,50%,60%,0.25); }
 .kf-mp  { font-size:11px; color:hsl(220,60%,65%); text-align:center; }
 .kf-cd  { font-size:11px; text-align:center; }
 .kf-cd.rdy { color:hsl(158,50%,55%); }
@@ -2145,6 +2146,29 @@ async function loadKungfuLib() {
   console.log(`[战斗UI] 武功库加载完成，共 ${Object.keys(KUNGFU_LIB).length} 个武功`);
 }
 
+let _customKfNames = [];
+function _injectCustomKungfu(){
+  _customKfNames=[];
+  try{
+    const chatId=window.parent.SillyTavern?.getContext?.()?.chatId||'default';
+    const raw=localStorage.getItem('wx_'+chatId+'_wudao');
+    if(!raw)return;
+    const decoded=JSON.parse(decodeURIComponent(escape(atob(raw))));
+    if(!decoded.d||!decoded.h)return;
+    let h=5381;const s=decoded.d+'wx_wd_salt_2024';
+    for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))>>>0;
+    if(h.toString(36)!==decoded.h)return;
+    const data=JSON.parse(decoded.d);
+    if(!data.slots||!data.kfObjs)return;
+    for(const obj of data.kfObjs){
+      if(!obj)continue;
+      KUNGFU_LIB[obj.名字]=obj;
+      _customKfNames.push(obj.名字);
+    }
+    if(_customKfNames.length) console.log('[战斗UI] 注入自创武功: '+_customKfNames.join(', '));
+  }catch(e){console.warn('[战斗UI] 自创武功注入失败:',e);}
+}
+
 // ── 全局状态 G ─────────────────────────────────────────────
 let G = {
   phase: 'boot',
@@ -2676,6 +2700,8 @@ async function init(){
   // 预加载音效到AudioBuffer缓存
   Object.values(SFX).forEach(u=>{if(u)_decodeSfx(u);});
   await loadKungfuLib();
+  // ── 注入自创武功到武功库 ──
+  _injectCustomKungfu();
   log('══ 天书江湖录 · 战斗开启 ══','l-sys');
   const mvu=await loadMvu();
   const sd=mvu?.stat_data;
@@ -2747,6 +2773,18 @@ async function init(){
   for(const k of G.pKeys){ if(G.actors[k]) G.actors[k].playerItemsRef = playerItems; }
   G.itemUsageLimit = G.pKeys.length * 10;
   for(const k of allKeys()) G.atbProg[k]=Math.random()*25;
+
+  // 检查倍速安全性：若任何角色在某倍速下单tick溢出，禁用该倍速
+  for(const s of [2,4]){
+    const overflow=allKeys().some(k=>{
+      const spd=getAttr(k,'速度')||50;
+      return (spd*0.05+1.5)*s>=100;
+    });
+    if(overflow){
+      const btn=q(s===2?'b-spd2':'b-spd4');
+      if(btn){btn.disabled=true;btn.style.opacity='0.3';}
+    }
+  }
 
   // ── 自动应用被动状态（影响回合===-1 的永久效果）──
   for(const k of allKeys()){
@@ -2832,6 +2870,7 @@ function buildActor(key,type,data){
   }
   const mainKf=data.主运内功||'';
   const kfList=Array.isArray(data.领悟功法)?data.领悟功法:Object.keys(data.领悟功法||data.武功||{});
+  if(type==='player'&&_customKfNames.length) for(const n of _customKfNames){if(!kfList.includes(n))kfList.push(n);}
   const lv=info.等级||1;
   const hpBase=300+lv*60+(attr.力量||0)*20;
   const mpBase=300+lv*60+(attr.内功修为||0)*20;
