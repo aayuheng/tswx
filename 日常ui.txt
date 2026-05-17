@@ -1679,11 +1679,11 @@ const WD_ATTRS = ['无','内功修为','力量','速度','防御力','身法'];
 const WD_CATS = ['拳掌','棍枪','剑','刀','暗器'];
 const WD_STATUSES = ['点穴','眩晕','封穴','中毒','流血'];
 const WD_STATUS_CFG = {
-  '点穴':{turns:1,maxTurns:3,prob:0.1,maxProb:0.4,probStep:0.02,turnCost:2,val:0,valGrow:false,valStep:0},
-  '眩晕':{turns:1,maxTurns:3,prob:0.1,maxProb:0.4,probStep:0.02,turnCost:2,val:0,valGrow:false,valStep:0},
+  '点穴':{turns:1,maxTurns:3,prob:0.1,maxProb:0.4,probStep:0.02,turnCost:5,val:0,valGrow:false,valStep:0},
+  '眩晕':{turns:1,maxTurns:3,prob:0.1,maxProb:0.4,probStep:0.02,turnCost:5,val:0,valGrow:false,valStep:0},
   '封穴':{turns:2,maxTurns:5,prob:0.1,maxProb:0.44,probStep:0.02,turnCost:2,val:0,valGrow:false,valStep:0},
-  '中毒':{turns:0,maxTurns:0,prob:0.1,maxProb:0.45,probStep:0.05,turnCost:0,val:[0.01,0.1],maxVal:0.33,valGrow:true,valStep:0.02},
-  '流血':{turns:0,maxTurns:0,prob:0.1,maxProb:0.45,probStep:0.05,turnCost:0,val:[0.01,0.1],maxVal:0.33,valGrow:true,valStep:0.02}
+  '中毒':{turns:0,maxTurns:0,prob:0.1,maxProb:0.45,probStep:0.05,turnCost:0,val:[0.01,0.1],maxVal:0.26,valGrow:true,valStep:0.01},
+  '流血':{turns:0,maxTurns:0,prob:0.1,maxProb:0.45,probStep:0.05,turnCost:0,val:[0.01,0.1],maxVal:0.26,valGrow:true,valStep:0.01}
 };
 function _wdHash(str){
   let h=5381;
@@ -2067,7 +2067,7 @@ function _wdRenderDetail(idx){
         html+='<span style="color:var(--text-dim)">状态持续回合</span>';
         html+='<span id="wd-g-turn" style="color:var(--text-main)">'+growTurns+'</span>';
         if(growTurns>=stCfg2.maxTurns){html+='<span></span><span style="font-size:10px;color:var(--vermilion-l)">已满</span>';}
-        else{html+='<button id="wd-turn-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-turn-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+1 (2点)</button>';}
+        else{html+='<button id="wd-turn-down" style="padding:2px 6px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass);color:var(--text-dim);font-size:10px;cursor:pointer;text-align:center">-</button><button id="wd-turn-up" style="padding:2px 8px;border-radius:4px;border:1px solid var(--gold-line);background:var(--glass);color:var(--gold-l);font-size:10px;cursor:pointer">+1 ('+(stCfg2.turnCost||2)+'点)</button>';}
       }
       // 状态效果数值
       if(stCfg2.valGrow){
