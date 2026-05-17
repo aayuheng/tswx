@@ -3434,7 +3434,7 @@ function getWeaponSkill(key){
 }
 
 // ── 普攻 ─────────────────────────────────────────────────
-function doNormalAttack(atkKey,tgtKey){
+async function doNormalAttack(atkKey,tgtKey){
   const atk=gA(atkKey),tgt=gA(tgtKey); if(!atk||!tgt){endTurn(atkKey);return;}
   const aShn=getAttr(atkKey,'身法'), tShn=getAttr(tgtKey,'身法');
   let evade=clamp(5+(tShn-aShn)/100*10,5,70)/100;
@@ -3483,8 +3483,18 @@ function doNormalAttack(atkKey,tgtKey){
   if(_xhmg)dmg*=1+(_xhmg.数值||0.5);
   dmg=Math.floor(dmg);
   if(_tgtDef)playSfx(SFX.defend); else {const _wt=BSKILL_TO_WTYPE[wSkill]||'fist';playSfx(getAtkSfx(_wt));}
-  const reb=(G.statuses[tgtKey]||[]).find(s=>s.名称==='反弹');
-  if(reb){const rv=Math.floor(dmg*(reb.数值||0.3));dealDmg(atkKey,rv);log(`${tgt.name}反弹 ${rv} 伤害`,'l-dmg');floatDmg(q(`card-${atkKey}`),`反弹-${rv}`,'hsl(280,60%,60%)');}
+  // 斗转星移（优先于反弹/反击）
+  let _dzxyHit=false;
+  if(!G._dzxyActive){
+    const dzxy=(G.statuses[tgtKey]||[]).find(s=>s.名称==='斗转星移');
+    if(dzxy&&gA(tgtKey)?.alive&&gA(atkKey)?.alive&&Math.random()<(dzxy.成功率||0.55)){
+      _dzxyHit=true;
+    }
+  }
+  if(!_dzxyHit){
+    const reb=(G.statuses[tgtKey]||[]).find(s=>s.名称==='反弹');
+    if(reb){const rv=Math.floor(dmg*(reb.数值||0.3));dealDmg(atkKey,rv);log(`${tgt.name}反弹 ${rv} 伤害`,'l-dmg');floatDmg(q(`card-${atkKey}`),`反弹-${rv}`,'hsl(280,60%,60%)');}
+  }
   // 吸取内力
   const drain=(G.statuses[atkKey]||[]).find(s=>s.名称==='吸取内力');
   if(drain&&gA(tgtKey)?.alive){const dv=Math.floor(dmg*(drain.数值||0.1));const tc=gA(tgtKey);const ac=gA(atkKey);const stolen=Math.min(dv,tc.mp.cur);tc.mp.cur-=stolen;ac.mp.cur=Math.min(ac.mp.max,ac.mp.cur+stolen);updateCard(tgtKey);updateCard(atkKey);if(stolen>0)log(`${atk.name} 吸取 ${tgt.name} ${stolen} 内力`,'l-buff');}
@@ -3493,14 +3503,30 @@ function doNormalAttack(atkKey,tgtKey){
   const _st2=getAtkStyle(atkKey);
   log(`${atk.name}${_rF(_st2.verbs)}${tgt.name} -${dmg}`,'l-dmg');
   floatDmg(q(`card-${tgtKey}`),`-${dmg}`,'hsl(355,65%,60%)');
-  // 反击
-  const ctr=(G.statuses[tgtKey]||[]).find(s=>s.名称==='反击');
-  if(ctr&&gA(tgtKey)?.alive&&gA(atkKey)?.alive){
+  if(!_dzxyHit){
+    // 反击
+    const ctr=(G.statuses[tgtKey]||[]).find(s=>s.名称==='反击');
+    if(ctr&&gA(tgtKey)?.alive&&gA(atkKey)?.alive){
+      const cStr=getAttr(tgtKey,'力量'),cBval=getBskill(tgtKey,getWeaponSkill(tgtKey));
+      let cDmg=Math.floor((cStr*1.5+cBval*1.5)*rand(0.9,1.1)*(ctr.数值||0.5));
+      let cDef=getAttr(atkKey,'防御力');cDmg=Math.floor(cDmg*(1-cDef/(cDef+200)));
+      dealDmg(atkKey,cDmg);log(`${tgt.name} 反击 → ${atk.name} -${cDmg}`,'l-dmg');
+      floatDmg(q(`card-${atkKey}`),`-${cDmg}`,'hsl(30,70%,55%)');
+    }
+  }
+  // 斗转星移反击（普攻）
+  if(_dzxyHit&&gA(tgtKey)?.alive&&gA(atkKey)?.alive){
+    await new Promise(r=>setTimeout(r,spd(500)));
+    const dzxy=(G.statuses[tgtKey]||[]).find(s=>s.名称==='斗转星移');
     const cStr=getAttr(tgtKey,'力量'),cBval=getBskill(tgtKey,getWeaponSkill(tgtKey));
-    let cDmg=Math.floor((cStr*1.5+cBval*1.5)*rand(0.9,1.1)*(ctr.数值||0.5));
-    let cDef=getAttr(atkKey,'防御力');cDmg=Math.floor(cDmg*(1-cDef/(cDef+200)));
-    dealDmg(atkKey,cDmg);log(`${tgt.name} 反击 → ${atk.name} -${cDmg}`,'l-dmg');
-    floatDmg(q(`card-${atkKey}`),`-${cDmg}`,'hsl(30,70%,55%)');
+    let cDmg=Math.floor((cStr*1.5+cBval*1.5)*rand(0.9,1.1));
+    let cDef=getAttr(atkKey,'防御力'); if(G.defending.has(atkKey))cDef*=2;
+    cDmg=Math.floor(cDmg*(1-cDef/(cDef+200))*(dzxy?.数值||0.7));
+    const _wt2=BSKILL_TO_WTYPE[getWeaponSkill(tgtKey)]||'fist';
+    playSfx(getAtkSfx(_wt2));
+    dealDmg(atkKey,cDmg);
+    log(`${tgt.name}【斗转星移】以彼之道还施彼身 → ${atk.name} -${cDmg}`,'l-crit');
+    floatDmg(q(`card-${atkKey}`),`斗转-${cDmg}`,'hsl(200,70%,55%)');
   }
   endTurn(atkKey);
 }
@@ -3540,6 +3566,8 @@ function buildKfPanel(){
       }
       if(nm==='反弹')return `反弹${pct} ${dur===-1?'永久':dur+'回合'}`;
       if(nm==='反击')return `反击${pct} ${dur===-1?'永久':dur+'回合'}`;
+      if(nm==='斗转星移')return `斗转星移${pct} ${dur===-1?'永久':dur+'回合'}`;
+      if(nm==='药王毒术')return `被动 中毒伤害+${pct}`;
       if(nm==='失明')return `失明 ${dur}回合 成功${rate}%`;
       if(nm==='免疫异常')return `免疫异常${dur===-1?' 永久':' '+dur+'回合'}`;
       return `${nm}${rate<100?' 成功'+rate+'%':''}`;
@@ -3733,9 +3761,9 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
   let dmg=base*rand(floatR[0],floatR[1])*attrMul*bskMul;
   const isHealKf=kf.作用范围&&(kf.作用范围.includes('我方')||kf.作用范围.includes('仅我'));
   if(!isHealKf) dmg+=getAttr(atkKey,'力量')*1.5;
-  // 需要主运内功检查：未满足条件则威力大打折扣
+  // 需要主运内功检查：未满足条件则威力大打折扣（斗转星移反击时跳过）
   let _kfNerfed=false;
-  if(kf.需要主运内功&&atk.mainKf!==kf.需要主运内功){
+  if(!G._dzxyActive&&kf.需要主运内功&&atk.mainKf!==kf.需要主运内功){
     dmg*=0.1; _kfNerfed=true;
     log(`${atk.name}未主运【${kf.需要主运内功}】，「${kfName}」威力大打折扣！`,'l-miss');
   }
@@ -3761,10 +3789,20 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
     if(_xhmg2)dmg*=1+(_xhmg2.数值||0.5);
   }
   dmg=Math.floor(Math.max(0,dmg));
-  // 反弹（基于实际承受伤害）
-  const reb=(G.statuses[tgtKey]||[]).find(s=>s.名称==='反弹');
-  if(reb&&dmg>0){const rv=Math.floor(dmg*(reb.数值||0.3));dealDmg(atkKey,rv);log(`${tgt.name}反弹 ${rv}`,'l-dmg');floatDmg(q(`card-${atkKey}`),`反弹-${rv}`,'hsl(280,60%,60%)');}
-  // 治疗类（作用范围含"我方"或"仅我"）
+  // 斗转星移伤害倍率（被反击时生效）
+  if(G._dzxyDmgMul){dmg=Math.floor(dmg*G._dzxyDmgMul);}
+  // 斗转星移 or 反弹（互斥，斗转星移优先）
+  let _dzxyTriggered=false;
+  if(!isHealKf&&!G._dzxyActive&&dmg>0){
+    const dzxy=(G.statuses[tgtKey]||[]).find(s=>s.名称==='斗转星移');
+    if(dzxy&&gA(tgtKey)?.alive&&gA(atkKey)?.alive&&Math.random()<(dzxy.成功率||0.55)){
+      _dzxyTriggered=true;
+    }
+  }
+  if(!_dzxyTriggered){
+    const reb=(G.statuses[tgtKey]||[]).find(s=>s.名称==='反弹');
+    if(reb&&dmg>0){const rv=Math.floor(dmg*(reb.数值||0.3));dealDmg(atkKey,rv);log(`${tgt.name}反弹 ${rv}`,'l-dmg');floatDmg(q(`card-${atkKey}`),`反弹-${rv}`,'hsl(280,60%,60%)');}
+  }  // 治疗类（作用范围含"我方"或"仅我"）
   const isHeal=isHealKf;
   // 免伤判定（非治疗类武功）
   if(!isHeal&&dmg>0){
@@ -3807,6 +3845,18 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
     log(fL(critted?FLAVOR.kfCrit:FLAVOR.kfHit,{atk:atk.name,kf:kfName,tgt:tgt.name})+` -${dmg}${critted?' 暴击！':''}`,(critted?'l-crit':'l-dmg'));
     floatDmg(q(`card-${tgtKey}`),critted?`暴 -${dmg}`:`-${dmg}`,color,sz);
     G.battleLog.push({t:'KF',a:atk.name,v:tgt.name,sk:kfName,d:dmg,crit:critted});
+  }
+  // 斗转星移反击（武功）
+  if(_dzxyTriggered&&gA(tgtKey)?.alive&&gA(atkKey)?.alive){
+    await new Promise(r=>setTimeout(r,spd(500)));
+    const dzxy=(G.statuses[tgtKey]||[]).find(s=>s.名称==='斗转星移');
+    log(`${tgt.name}【斗转星移】以「${kfName}」还施彼身！`,'l-crit');
+    floatDmg(q(`card-${tgtKey}`),'斗转星移','hsl(200,70%,55%)','16px');
+    G._dzxyActive=true;
+    G._dzxyDmgMul=dzxy?.数值||0.7;
+    await doKfOnTgt(tgtKey,kfName,kf,atkKey);
+    G._dzxyDmgMul=0;
+    G._dzxyActive=false;
   }
   // 无伤害的自施buff（如轻功），输出使用日志
   if(isHeal&&dmg===0){
@@ -3882,10 +3932,10 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
         };
         setTimeout(tick,spd(500));
       });
-    } else if(Math.random()<(s.成功率||0)){
+    } else if(s.名称==='斗转星移'||Math.random()<(s.成功率||0)){
       // 净化：清除目标负面状态
       if(s.名称==='净化'){
-        const KEEP=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常','速度上升','龙象之力'];
+        const KEEP=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常','速度上升','龙象之力'];
         const before=(G.statuses[tgtKey]||[]).length;
         G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(x=>KEEP.includes(x.名称)||/^免伤/.test(x.名称));
         const removed=before-(G.statuses[tgtKey]||[]).length;
@@ -3938,7 +3988,7 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
         const isImm=/^免伤/.test(s.名称);
         const isImmAbn=s.名称==='免疫异常';
         // 好buff列表
-        const GOOD_BUFFS=['攻击上升','防御上升','反弹','反击','力量上升','身法上升','闪避提升','闪避上升','速度上升','免疫异常'];
+        const GOOD_BUFFS=['攻击上升','防御上升','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','速度上升','免疫异常'];
         const isGoodBuff=GOOD_BUFFS.includes(s.名称)||isImm;
         // 攻击技附带好buff（基础效果值非0 且 好buff）→ 给攻击者自己
         const isAtkWithGoodBuff=isGoodBuff&&(kf.基础效果值||0)!==0;
@@ -3964,13 +4014,15 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
         const _baseRounds=s.影响回合??3;
         const selfBuff=stKey===atkKey;
         const st={名称:s.名称,数值:s.数值||0,剩余回合:selfBuff?(_baseRounds+1):_baseRounds};
+        if(s.名称==='斗转星移') st.成功率=s.成功率||0.55;
+        if(st.名称==='中毒'){const _yw=(G.statuses[atkKey]||[]).find(x=>x.名称==='药王毒术');if(_yw)st.数值=st.数值*(1+(_yw.数值||0.5));}
         G.statuses[stKey]=G.statuses[stKey]||[];
         const exist=G.statuses[stKey].find(x=>x.名称===st.名称);
-        const NO_STACK=['点穴','眩晕','冰冻','反弹','反击','封穴'];
+        const NO_STACK=['点穴','眩晕','冰冻','反弹','反击','封穴','斗转星移'];
         const noStack=NO_STACK.includes(st.名称)||/^免伤/.test(st.名称);
         if(exist){exist.剩余回合=Math.max(exist.剩余回合,st.剩余回合);if(noStack)exist.数值=st.数值;else exist.数值+=st.数值;}
         else G.statuses[stKey].push(st);
-        const _stBuff=['攻击上升','防御上升','回血','回内','反弹','反击','力量上升','身法上升','闪避提升','闪避上升','速度上升','免疫异常'].includes(st.名称)||/^免伤/.test(st.名称);
+        const _stBuff=['攻击上升','防御上升','回血','回内','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','速度上升','免疫异常'].includes(st.名称)||/^免伤/.test(st.名称);
         if(_stBuff) log(fL(FLAVOR.statusBuff,{tgt:stTarget.name,st:st.名称,r:st.剩余回合}),'l-buff');
         else log(fL(FLAVOR.statusApply,{tgt:stTarget.name,st:st.名称,r:st.剩余回合}),'l-buff');
         floatDmg(q(`card-${stKey}`),st.名称,_stBuff?'hsl(42,75%,60%)':'hsl(0,70%,60%)','20px');
@@ -4073,7 +4125,7 @@ function doItem(tgtKey,name,item){
     const type=item.类型||'回血';
     if(type==='回血'){c.hp.cur=Math.min(c.hp.max,c.hp.cur+val);log(`${user?.name||''} 对 ${c.name} 使用${name}，回复 ${val} 气血`,'l-heal');floatDmg(q(`card-${tgtKey}`),`+${val}`,'hsl(158,50%,55%)');fxHeal(q(`card-${tgtKey}`),'hp');}
     else if(type==='回内'){c.mp.cur=Math.min(c.mp.max,c.mp.cur+val);log(`${user?.name||''} 对 ${c.name} 使用${name}，回复 ${val} 内力`,'l-heal');floatDmg(q(`card-${tgtKey}`),`+${val}`,'hsl(210,70%,55%)');fxHeal(q(`card-${tgtKey}`),'mp');}
-    else if(type==='回状态'){const KEEP=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常'];G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(s=>KEEP.includes(s.名称)||/^免伤/.test(s.名称));log(`${user?.name||''} 对 ${c.name} 使用${name}，清除负面状态`,'l-buff');floatDmg(q(`card-${tgtKey}`),'净化','hsl(42,80%,55%)',14);fxHeal(q(`card-${tgtKey}`),'status');}
+    else if(type==='回状态'){const KEEP=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常'];G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(s=>KEEP.includes(s.名称)||/^免伤/.test(s.名称));log(`${user?.name||''} 对 ${c.name} 使用${name}，清除负面状态`,'l-buff');floatDmg(q(`card-${tgtKey}`),'净化','hsl(42,80%,55%)',14);fxHeal(q(`card-${tgtKey}`),'status');}
   }
   G.battleLog.push({t:'ITEM',a:user?.name||'',item:name,v:c.name});
   G.itemsUsed[name]=(G.itemsUsed[name]||0)+1;
@@ -4827,7 +4879,7 @@ function makeCard(key){
 }
 
 function renderSt(key){
-  const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力'];
+  const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
     const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称);
