@@ -2869,7 +2869,7 @@ function buildActor(key,type,data){
     }
   }
   const mainKf=data.主运内功||'';
-  const kfList=Array.isArray(data.领悟功法)?data.领悟功法:Object.keys(data.领悟功法||data.武功||{});
+  const kfList=Array.isArray(data.领悟功法)?[...data.领悟功法]:Object.keys(data.领悟功法||data.武功||{});
   if(type==='player'&&_customKfNames.length) for(const n of _customKfNames){if(!kfList.includes(n))kfList.push(n);}
   const lv=info.等级||1;
   const hpBase=300+lv*60+(attr.力量||0)*20;
