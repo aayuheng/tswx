@@ -380,6 +380,8 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
   box-shadow:0 0 8px hsla(42,68%,52%,0.08)}
 .cat-轻功{border-color:hsla(152,42%,45%,0.40);color:hsl(152,45%,58%);background:hsla(152,42%,45%,0.06)}
 .cat-内功{border-color:hsla(270,45%,55%,0.40);color:hsl(270,45%,68%);background:hsla(270,45%,55%,0.06)}
+.cat-自创{border-color:hsla(185,50%,50%,0.40);color:hsl(185,55%,65%);background:hsla(185,50%,50%,0.06)}
+.wx-kungfu-item-name.nc-自创{color:hsl(185,55%,65%)}
 .wx-kungfu-detail{display:none;margin-top:10px;padding-top:10px;border-top:1px solid hsla(42,68%,52%,0.08)}
 .wx-kungfu-detail.open{display:block;animation:panel-fade 0.3s var(--ease-silk)}
 .wx-kungfu-desc{font-size:11px;color:var(--text-dim);line-height:1.8;margin-bottom:10px}
@@ -2113,7 +2115,22 @@ function _wdRenderDetail(idx){
       if(slot.locks[key]){
         slot.locks[key]=false;
         dd.spent=Math.max(0,dd.spent-1);
-        dd.slots[idx]=slot;_wdSave(dd);_wdRenderDetail(idx);
+        // 解锁时触发一次随机（防止白嫖）
+        var newKf=_wdGenKungfu(idx);
+        newKf.confirmed=slot.confirmed; newKf.upgrades=slot.upgrades;
+        if(slot.locks.status){
+          newKf.statusOn=slot.statusOn;newKf.status=slot.status;
+          if(slot.statusOn&&!slot.locks.base) newKf.base=Math.round(tier.baseOn*_wdRandFloat(0.95,1.05));
+        }else if(slot.statusOn){newKf.statusOn=true;newKf.status=_wdGenStatus();newKf.base=Math.round(tier.baseOn*_wdRandFloat(0.95,1.05));}
+        if(slot.locks.base) newKf.base=slot.base;
+        if(slot.locks.float) newKf.floatRange=slot.floatRange;
+        if(slot.locks.attr) newKf.attr=slot.attr;
+        if(slot.locks.mp) newKf.mp=slot.mp;
+        if(slot.locks.hit) newKf.hit=slot.hit;
+        newKf.category=slot.category;
+        newKf.locks=JSON.parse(JSON.stringify(slot.locks));
+        newKf.name=slot.name; newKf.desc=slot.desc; newKf.range=slot.range;
+        slot=newKf; dd.slots[idx]=slot;_wdSave(dd);_wdRenderDetail(idx);
       }else{
         if(pts<1){_wdMsg('悟道点不足');return;}
         slot.locks[key]=true;dd.spent++;
@@ -2139,6 +2156,7 @@ function _wdRenderDetail(idx){
   var stBtn=document.getElementById('wd-st-toggle');
   if(stBtn) stBtn.addEventListener('click',function(){
     if(slot.locks.status)return;
+    if(!slot.statusOn&&slot.locks.base){_wdMsg('需要解锁基础效果值');return;}
     slot.statusOn=!slot.statusOn;
     if(slot.statusOn&&!slot.status) slot.status=_wdGenStatus();
     if(!slot.locks.base){
@@ -2908,6 +2926,23 @@ function renderParty() {
             if (!data) { showToast('数据读取失败'); return; }
             data.stat_data = data.stat_data || {};
             data.stat_data.武功 = allKungfuRecord;
+            // ── 修正领悟功法：移除不在武功库中的武功（含自创武功残留）──
+            const _cleanLearned = function(charObj, label){
+              if(!charObj) return;
+              const arr = Array.isArray(charObj.领悟功法) ? charObj.领悟功法 : [];
+              const cleaned = []; const removed = [];
+              for(var i=0;i<arr.length;i++){
+                if(lib[arr[i]]) cleaned.push(arr[i]);
+                else removed.push(arr[i]);
+              }
+              if(removed.length){
+                charObj.领悟功法 = cleaned;
+                showToast(label+'移除无效武功：'+removed.join('、'));
+              }
+            };
+            _cleanLearned(data.stat_data.玩家, '玩家');
+            const _allies = data.stat_data.我方队友;
+            if(_allies){ for(const ak of Object.keys(_allies)) _cleanLearned(_allies[ak], ak); }
             // ── 修正玩家属性 ──
             const player = data.stat_data?.玩家;
             if (player) {
@@ -3298,35 +3333,51 @@ function buildItemsPanel(charKey, char) {
   return html;
 }
 
+// ── 获取自创武功列表（从localStorage）──
+function _getCustomKfList(){
+  try{
+    var r=_wdLoad();
+    if(!r.ok||!r.data) return [];
+    var d=r.data, objs=d.kfObjs||[];
+    var list=[];
+    for(var i=0;i<3;i++){
+      if(objs[i]&&objs[i]['名字']) list.push(objs[i]);
+    }
+    return list;
+  }catch(e){return [];}
+}
 // ── 武功面板（增加上限提示、详情、菜单按钮）──
 function buildKungfuPanel(charKey, char) {
+  const isPlayer = charKey==='player';
   const learned = char.领悟功法||[];
   const mainKf = char.主运内功||'';
-  // 统计各类别数量
   var _jxExtra=0;try{_jxExtra=_wdExtraJxSlots();}catch(e){}
   const KUNGFU_LIMITS = { 绝学: 3+_jxExtra, 普通: 4, 内功: 3, 轻功: 3 };
   const catCount = { 绝学: 0, 普通: 0, 内功: 0, 轻功: 0 };
   learned.forEach(n => { const c = window.parent?.WX_GET_KUNGFU?.(n)?.类别 || '普通'; catCount[c] = (catCount[c]||0) + 1; });
+
+  var customKfList = isPlayer ? _getCustomKfList() : [];
+  var customCount = customKfList.length;
 
   const limitHtml = `<div class="wx-kungfu-limit">
     ${Object.entries(KUNGFU_LIMITS).map(([cat,lim]) => {
       const cnt = catCount[cat]||0;
       return `<span class="wx-kungfu-limit-item ${cnt>=lim?'full':''}">${cat} ${cnt}/${lim}</span>`;
     }).join('')}
+    ${isPlayer?`<span class="wx-kungfu-limit-item">${'自创'} ${customCount}/3</span>`:''}
     <span class="wx-kungfu-limit-item">共 ${learned.length}/13</span>
   </div>`;
 
   const hasNeigong = learned.some(n => (window.parent?.WX_GET_KUNGFU?.(n)?.类别) === '内功');
   const needMain = hasNeigong && !mainKf;
 
-  if (!learned.length) return `${limitHtml}<div class="wx-empty">尚未领悟任何武功</div>`;
+  if (!learned.length && !customCount) return `${limitHtml}<div class="wx-empty">尚未领悟任何武功</div>`;
 
   const hintHtml = needMain ? '<div class="wx-kungfu-hint">尚未设置主运内功，请选择一门内功设为主运</div>' : '';
 
-  return `${limitHtml}${hintHtml}<div class="wx-kungfu-list${needMain?' need-main':''}">${learned.map(name=>{
+  var normalHtml = learned.length ? learned.map(name=>{
     const kf=window.parent?.WX_GET_KUNGFU?.(name)||null, cat=kf?.类别||'普通';
     const opened=_expandedKungfu[charKey]?.[name]||false;
-    // 判断是否可日常使用（回血/回内类）
     const canUseDaily = kf && (kf.影响状态?.名称 === '回血' || kf.影响状态?.名称 === '回内');
     const isMainKf = name === mainKf;
     const isNeigong = cat === '内功';
@@ -3357,7 +3408,40 @@ function buildKungfuPanel(charKey, char) {
         </div>
       </div>`:''}
     </div>`;
-  }).join('')}</div>`;
+  }).join('') : '';
+
+  var customHtml = '';
+  if(customCount){
+    customHtml = customKfList.map(function(kf){
+      var name=kf['名字'];
+      var opened=_expandedKungfu[charKey]?.[name]||false;
+      return '<div class="wx-kungfu-item" data-kungfu="'+name+'" data-key="'+charKey+'">'
+        +'<div class="wx-kungfu-item-head">'
+        +'<div class="wx-kungfu-item-name nc-自创">'+name+'</div>'
+        +'<span class="wx-kungfu-cat cat-自创">自创</span>'
+        +'</div>'
+        +'<div class="wx-kungfu-detail '+(opened?'open':'')+'">'
+        +'<div class="wx-kungfu-desc">'+(kf['描述']||'')+'</div>'
+        +'<div class="wx-kungfu-stats">'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">作用范围：</span><span class="wx-kungfu-stat-v">'+(kf['作用范围']||'敌方单体')+'</span></div>'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">消耗内力：</span><span class="wx-kungfu-stat-v">'+(kf['消耗内力']||0)+'</span></div>'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">冷却回合：</span><span class="wx-kungfu-stat-v">'+(kf['冷却']?kf['冷却'][0]:0)+'</span></div>'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">基础效果：</span><span class="wx-kungfu-stat-v">'+(kf['基础效果值']<1?Math.round(kf['基础效果值']*100)+'%':kf['基础效果值'])+'</span></div>'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">属性加成：</span><span class="wx-kungfu-stat-v">'+(kf['属性附加影响']||'无')+'</span></div>'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">命中率：</span><span class="wx-kungfu-stat-v">'+Math.round((kf['命中率']||0)*100)+'%</span></div>'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">伤害浮动：</span><span class="wx-kungfu-stat-v">'+(kf['伤害浮动']?kf['伤害浮动'][0]+'~'+kf['伤害浮动'][1]:'无')+'</span></div>'
+        +'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">等级要求：</span><span class="wx-kungfu-stat-v">'+(kf['等级要求']||0)+'</span></div>'
+        +(kf['影响状态']?'<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">状态附加：</span><span class="wx-kungfu-stat-v">'+kf['影响状态']['名称']+' | 成功率'+Math.round(kf['影响状态']['成功率']*100)+'%'+(kf['影响状态']['数值']?' | 效果'+(kf['影响状态']['数值']>0&&kf['影响状态']['数值']<1?Math.round(kf['影响状态']['数值']*100)+'%':kf['影响状态']['数值']):'')+' | 持续'+kf['影响状态']['影响回合']+'回合</span></div>':'')
+        +'</div>'
+        +'<div class="wx-kungfu-actions">'
+        +'<button class="wx-kungfu-act-btn forget" data-forgetcustom="'+name+'" data-key="'+charKey+'">遗忘</button>'
+        +'</div>'
+        +'</div>'
+        +'</div>';
+    }).join('');
+  }
+
+  return `${limitHtml}${hintHtml}<div class="wx-kungfu-list${needMain?' need-main':''}">${normalHtml}${customHtml}</div>`;
 }
 
 // ══════════════════════════════════════════════
@@ -3584,6 +3668,15 @@ function bindEvents(wrap, charKey, char, isPlayer) {
           if(res?.ok){showToast(`已遗忘「${kungfuName}」`);await loadState();renderParty();}
           else showToast(res?.msg||'遗忘失败');
         }},{label:'取消',cls:''}]});
+    });
+  });
+  // 自创武功遗忘（跳转悟道面板）
+  wrap.querySelectorAll('[data-forgetcustom]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const kungfuName=btn.dataset.forgetcustom;
+      showModal({title:'遗忘自创武功',text:'自创武功的管理请在悟道面板中操作。是否打开悟道面板？',
+        actions:[{label:'打开悟道',cls:'confirm',cb:()=>{openWdPanel();}},{label:'取消',cls:''}]});
     });
   });
   // 武功日常使用（回血/回内）
