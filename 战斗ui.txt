@@ -2435,55 +2435,70 @@ async function fixEnemyStats(mvuData){
       kfMpBonus+=(b.内力上限||0);
     }
 
-    // ── 步骤2：基本功补全（目标总值=等级×5）──
+    // ── 步骤2：基本功补全（基础=等级×5 等比放大，等级加成80/20分配）──
     const bsk=e.基本功||{};
-    let targetTotal=lv*5;
-    if(lv>=60) targetTotal+=250;
-    else if(lv>=50) targetTotal+=150;
-    else if(lv>=40) targetTotal+=100;
-    else if(lv>=35) targetTotal+=60;
-    else if(lv>=30) targetTotal+=30;
+    for(const k of BKEYS) if(!bsk[k]) bsk[k]=0;
+    const baseTarget=lv*5;
+    let lvBonus=0;
+    if(lv>=60) lvBonus=250;
+    else if(lv>=50) lvBonus=150;
+    else if(lv>=40) lvBonus=100;
+    else if(lv>=35) lvBonus=60;
+    else if(lv>=30) lvBonus=30;
+    const targetTotal=baseTarget+lvBonus;
     let curTotal=0;
-    for(const k of BKEYS) curTotal+=(bsk[k]||0);
+    for(const k of BKEYS) curTotal+=bsk[k];
 
     if(curTotal<targetTotal){
       changed=true;
-      if(curTotal>0){
-        // 按原比例等比放大
-        const ratio=targetTotal/curTotal;
-        let allocated=0;
-        let maxK=BKEYS[0], maxV=0;
-        for(const k of BKEYS){
-          const v=F((bsk[k]||0)*ratio);
-          bsk[k]=v; allocated+=v;
-          if(v>maxV){maxV=v;maxK=k;}
-        }
-        // 余数分给最大项
-        if(allocated<targetTotal) bsk[maxK]+=(targetTotal-allocated);
-      } else {
-        // 全零：按武功基本功要求推断比例
-        const weights={};
-        for(const k of BKEYS) weights[k]=0;
-        for(const kfName of learned){
-          const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
-          const req=kf.基本功要求||{};
-          for(const k of BKEYS) weights[k]=Math.max(weights[k],req[k]||0);
-        }
-        let wTotal=0;
-        for(const k of BKEYS) wTotal+=weights[k];
-        if(wTotal>0){
-          let allocated=0; let maxK=BKEYS[0], maxV=0;
+      if(curTotal<baseTarget){
+        if(curTotal>0){
+          const ratio=baseTarget/curTotal;
+          let allocated=0;
+          let maxK=BKEYS[0], maxV=0;
           for(const k of BKEYS){
-            const v=F(weights[k]/wTotal*targetTotal);
+            const v=F(bsk[k]*ratio);
             bsk[k]=v; allocated+=v;
             if(v>maxV){maxV=v;maxK=k;}
           }
-          if(allocated<targetTotal) bsk[maxK]+=(targetTotal-allocated);
+          if(allocated<baseTarget) bsk[maxK]+=(baseTarget-allocated);
         } else {
-          // 无武功或武功无要求：平均分配
-          const per=F(targetTotal/6);
-          for(const k of BKEYS) bsk[k]=per;
-          bsk[BKEYS[0]]+=(targetTotal-per*6);
+          const weights={};
+          for(const k of BKEYS) weights[k]=0;
+          for(const kfName of learned){
+            const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
+            const req=kf.基本功要求||{};
+            for(const k of BKEYS) weights[k]=Math.max(weights[k],req[k]||0);
+          }
+          let wTotal=0;
+          for(const k of BKEYS) wTotal+=weights[k];
+          if(wTotal>0){
+            let allocated=0; let maxK=BKEYS[0], maxV=0;
+            for(const k of BKEYS){
+              const v=F(weights[k]/wTotal*baseTarget);
+              bsk[k]=v; allocated+=v;
+              if(v>maxV){maxV=v;maxK=k;}
+            }
+            if(allocated<baseTarget) bsk[maxK]+=(baseTarget-allocated);
+          } else {
+            const per=F(baseTarget/6);
+            for(const k of BKEYS) bsk[k]=per;
+            bsk[BKEYS[0]]+=(baseTarget-per*6);
+          }
+        }
+      }
+      if(lvBonus>0){
+        let topK=BKEYS[0], topV=0;
+        for(const k of BKEYS){
+          if(k==='内功底蕴') continue;
+          if(bsk[k]>topV){topV=bsk[k];topK=k;}
+        }
+        const recalc=BKEYS.reduce((s,k)=>s+bsk[k],0);
+        const toAdd=Math.min(lvBonus, targetTotal-recalc);
+        if(toAdd>0){
+          const main=F(toAdd*0.8);
+          bsk[topK]+=main;
+          bsk['内功底蕴']+=(toAdd-main);
         }
       }
       e.基本功=bsk;
