@@ -2776,6 +2776,122 @@ function fixExpToNext(){
 }
 
 // ══════════════════════════════════════════════
+//  时辰回溯检测：AI未推进日期时自动修正
+// ══════════════════════════════════════════════
+var _TIME_ORDER = [
+  '子时初','子时中','子时末','丑时初','丑时中','丑时末',
+  '寅时初','寅时中','寅时末','卯时初','卯时中','卯时末',
+  '辰时初','辰时中','辰时末','巳时初','巳时中','巳时末',
+  '午时初','午时中','午时末','未时初','未时中','未时末',
+  '申时初','申时中','申时末','酉时初','酉时中','酉时末',
+  '戌时初','戌时中','戌时末','亥时初','亥时中','亥时末'
+];
+function _parseLunarDay(s){
+  var nm={'一':1,'二':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10};
+  if(s==='三十') return 30;
+  if(s==='二十') return 20;
+  if(s.charAt(0)==='初') return nm[s.charAt(1)]||null;
+  if(s.charAt(0)==='廿') return 20+(nm[s.charAt(1)]||0);
+  if(s.charAt(0)==='十') return 10+(nm[s.charAt(1)]||0);
+  return null;
+}
+function _formatLunarDay(n){
+  var d=['','一','二','三','四','五','六','七','八','九','十'];
+  if(n<=10) return '初'+d[n];
+  if(n===20) return '二十';
+  if(n===30) return '三十';
+  if(n<20) return '十'+d[n-10];
+  return '廿'+d[n-20];
+}
+function _formatLunarMonth(n){
+  if(n===1) return '正月';
+  var d=['','一','二','三','四','五','六','七','八','九','十'];
+  if(n<=10) return d[n]+'月';
+  if(n===11) return '十一月';
+  if(n===12) return '十二月';
+  return '';
+}
+function _lunarMonthDays(m){ return (m%2===1)?30:29; }
+function _nextGanZhi(yearStr){
+  var gan='甲乙丙丁戊己庚辛壬癸', zhi='子丑寅卯辰巳午未申酉戌亥';
+  if(yearStr.length!==2) return yearStr;
+  var gi=gan.indexOf(yearStr.charAt(0)), zi=zhi.indexOf(yearStr.charAt(1));
+  if(gi<0||zi<0) return yearStr;
+  return gan.charAt((gi+1)%10)+zhi.charAt((zi+1)%12);
+}
+function _parseGameDateFull(str){
+  if(!str) return null;
+  var yi=str.indexOf('年'); if(yi<0) return null;
+  var yearStr=str.substring(0,yi), rest=str.substring(yi+1);
+  var mList=['十一月','十二月','正月','二月','三月','四月','五月','六月','七月','八月','九月','十月'];
+  var mNums=[11,12,1,2,3,4,5,6,7,8,9,10];
+  var monthNum=0, dayPart='';
+  for(var i=0;i<mList.length;i++){
+    if(rest.indexOf(mList[i])===0){ monthNum=mNums[i]; dayPart=rest.substring(mList[i].length); break; }
+  }
+  if(!monthNum) return null;
+  dayPart=dayPart.replace(/日$/,'');
+  var dayNum=_parseLunarDay(dayPart);
+  if(!dayNum) return null;
+  return {year:yearStr, month:monthNum, day:dayNum};
+}
+function _incrementLunarDate(p){
+  var d=p.day+1, m=p.month, y=p.year;
+  if(d>_lunarMonthDays(m)){ d=1; m++; if(m>12){ m=1; y=_nextGanZhi(y); } }
+  return {year:y, month:m, day:d};
+}
+function _formatFullDate(p){
+  return p.year+'年'+_formatLunarMonth(p.month)+_formatLunarDay(p.day)+'日';
+}
+async function _checkTimeRegression(){
+  if(!_state) return;
+  var world=_state.世界; if(!world) return;
+  var curDate=world.日期||'', curTime=world.时辰||'';
+  if(!curDate||!curTime) return;
+  var chatId=_getChatId();
+  var cacheKey='wx_'+chatId+'_时辰';
+  var cached=localStorage.getItem(cacheKey);
+  if(!cached){
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    return;
+  }
+  var cacheObj;
+  try{ cacheObj=JSON.parse(cached); }catch(e){
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    return;
+  }
+  var cachedDate=cacheObj.date||'', cachedTime=cacheObj.time||'';
+  if(curDate!==cachedDate){
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    return;
+  }
+  var cachedIdx=_TIME_ORDER.indexOf(cachedTime);
+  var curIdx=_TIME_ORDER.indexOf(curTime);
+  if(cachedIdx<0||curIdx<0) return;
+  if(curIdx>=cachedIdx){
+    if(curIdx>cachedIdx) localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    return;
+  }
+  var parsed=_parseGameDateFull(curDate);
+  if(!parsed) return;
+  var newParsed=_incrementLunarDate(parsed);
+  var newDate=_formatFullDate(newParsed);
+  var Mvu=window.parent?.Mvu; if(!Mvu) return;
+  var lastId=window.parent.getLastMessageId?.();
+  var msgs=await window.parent.getChatMessages?.('0-'+lastId);
+  var aiMsgId=lastId;
+  if(msgs){ for(var i=msgs.length-1;i>=0;i--){ if(msgs[i].role==='assistant'){aiMsgId=msgs[i].message_id;break;} } }
+  var data=await Mvu.getMvuData({type:'message',message_id:aiMsgId});
+  if(!data) return;
+  data.stat_data=data.stat_data||{};
+  data.stat_data.世界=data.stat_data.世界||{};
+  data.stat_data.世界.日期=newDate;
+  await Mvu.replaceMvuData(data,{type:'message',message_id:aiMsgId});
+  await loadState();
+  localStorage.setItem(cacheKey, JSON.stringify({date:newDate,time:curTime}));
+}
+
+// ══════════════════════════════════════════════
 //  正文提取 — 严格只取最后一个 <content>…</content>
 //  （内部不嵌套另一个 <content>，排除思维链提示文本）
 // ══════════════════════════════════════════════
@@ -3918,7 +4034,7 @@ function loadContent() {
   const hasZd = _tail.includes('\u003czd\u003e');
   _battleAlert = hasEnemy && !hasZd;
   if(_battleAlert) showToast('检测到敌人，但似乎未出现战斗ui，您可手动打开战斗界面', 5000);
-  loadState().then(() => { renderWorldInfo(); renderParty(); cleanOldRecords(); bgmOnContentLoad(raw); });
+  loadState().then(async()=>{ await _checkTimeRegression(); renderWorldInfo(); renderParty(); cleanOldRecords(); bgmOnContentLoad(raw); });
 }
 
 initAttrTooltip();
