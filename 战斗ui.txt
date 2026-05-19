@@ -517,6 +517,7 @@ body {
 .l-miss { color:hsla(38,30%,72%,0.4); font-style:italic; }
 .l-crit { color:var(--gold-bright); font-weight:700; text-shadow:0 0 6px var(--gold-glow); }
 .l-flee { color:hsl(158,50%,55%); }
+.l-warn { color:hsl(0,70%,60%); font-weight:700; text-align:center; font-size:1.15em; text-shadow:0 0 8px hsla(0,80%,50%,0.5); }
 
 /* ════════════════════════════════════════════════
    结算弹窗
@@ -2684,6 +2685,36 @@ async function fixAllyStats(mvuData){
   }
 }
 
+// ── 越狱审查：删除超等级武功 ─────────────────────────────────
+async function auditIllegalKungfu(mvuData){
+  const sd=mvuData.stat_data; if(!sd)return;
+  const removed=[];
+  const check=(label,charData)=>{
+    const lv=charData.基础信息?.等级||1;
+    const kfArr=charData.领悟功法;
+    if(!Array.isArray(kfArr))return;
+    for(let i=kfArr.length-1;i>=0;i--){
+      const name=kfArr[i];
+      const kf=KUNGFU_LIB[name]; if(!kf)continue;
+      if((kf.等级要求||1)>lv){
+        kfArr.splice(i,1);
+        removed.push(`${label}(Lv${lv})：${name}(需Lv${kf.等级要求})`);
+        if(charData.主运内功===name) charData.主运内功='';
+      }
+    }
+  };
+  if(sd.玩家) check(sd.玩家.基础信息?.姓名||'玩家',sd.玩家);
+  for(const[name,ally]of Object.entries(sd.我方队友||{})){
+    check(ally.基础信息?.姓名||name,ally);
+  }
+  if(removed.length){
+    const Mvu=getMvu();
+    if(Mvu) await Mvu.replaceMvuData(mvuData,{type:'message',message_id:G.aiMsgId});
+    log('⚠ 请不要越狱，已修正非法武功 ⚠','l-warn');
+    for(const r of removed) log(r,'l-warn');
+  }
+}
+
 // ── 初始化 ─────────────────────────────────────────────────
 async function init(){
   // 预加载SVG图像（从资源脚本）
@@ -2737,6 +2768,8 @@ async function init(){
   if(useData.我方队友&&Object.keys(useData.我方队友).length){
     await fixAllyStats(mvu);
   }
+  // ── 越狱审查 ──
+  await auditIllegalKungfu(mvu);
   G.actors={};G.pKeys=[];G.eKeys=[];G.statuses={};G.cds={};G.atbProg={};G.copiedKf={};
   G.defending=new Set();G.jiazhuMap={};G.roundCount=0;G.result=null;G.settleChoice=null;G.expGained=0;
   G.battleLog=[];G.itemsUsed={};G.charExp={};G.charExpNext={};G.charCurExp={};G.charCurLv={};G.charBskPts={};
