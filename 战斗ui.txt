@@ -2759,6 +2759,8 @@ async function init(){
     return;
   }
   const useData=sd;
+  // ── 越狱审查（在属性补全之前，避免非法武功影响数值计算）──
+  await auditIllegalKungfu(mvu);
   // ── 敌人属性补全 ──
   if(useData.敌人&&Object.keys(useData.敌人).length){
     await fixEnemyStats(mvu);
@@ -2768,8 +2770,6 @@ async function init(){
   if(useData.我方队友&&Object.keys(useData.我方队友).length){
     await fixAllyStats(mvu);
   }
-  // ── 越狱审查 ──
-  await auditIllegalKungfu(mvu);
   G.actors={};G.pKeys=[];G.eKeys=[];G.statuses={};G.cds={};G.atbProg={};G.copiedKf={};
   G.defending=new Set();G.jiazhuMap={};G.roundCount=0;G.result=null;G.settleChoice=null;G.expGained=0;
   G.battleLog=[];G.itemsUsed={};G.charExp={};G.charExpNext={};G.charCurExp={};G.charCurLv={};G.charBskPts={};
