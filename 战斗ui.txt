@@ -2440,7 +2440,10 @@ async function fixEnemyStats(mvuData){
     for(const k of BKEYS) if(!bsk[k]) bsk[k]=0;
     const baseTarget=lv*5;
     let lvBonus=0;
-    if(lv>=60) lvBonus=250;
+    if(lv>=90) lvBonus=1000;
+    else if(lv>=80) lvBonus=600;
+    else if(lv>=70) lvBonus=400;
+    else if(lv>=60) lvBonus=250;
     else if(lv>=50) lvBonus=150;
     else if(lv>=40) lvBonus=100;
     else if(lv>=35) lvBonus=60;
@@ -3678,7 +3681,22 @@ function doKungfu(atkKey,kfName,tgtKeys){
     } else {
       const copyable=allKf.filter(n=>(KUNGFU_LIB[n]?.等级要求||1)<=lvLimit);
       if(!copyable.length){log(`${atk.name} 施展小无相功，但无法复制${tgt.name}的武功`,'l-miss');endTurn(atkKey);return;}
-      const pick=copyable[Math.floor(Math.random()*copyable.length)];
+      const _CC=['点穴','眩晕','冰冻'];
+      const _isCC=n=>{const k=KUNGFU_LIB[n];return k?.影响状态&&_CC.includes(k.影响状态.名称);};
+      const _bestBase=(arr)=>arr.reduce((a,b)=>(KUNGFU_LIB[b]?.基础效果值||0)>(KUNGFU_LIB[a]?.基础效果值||0)?b:a);
+      const jx=copyable.filter(n=>KUNGFU_LIB[n]?.类别==='绝学');
+      let pick;
+      if(jx.length){
+        const jxCC=jx.find(_isCC);
+        pick=jxCC||_bestBase(jx);
+      } else {
+        const normCC=copyable.find(_isCC);
+        if(normCC) pick=normCC;
+        else {
+          const atkKf=copyable.filter(n=>{const k=KUNGFU_LIB[n];return k&&k.类别!=='轻功'&&k.类别!=='内功'&&!(k.影响状态&&(k.影响状态.名称==='回血'||k.影响状态.名称==='回内'));});
+          pick=atkKf.length?_bestBase(atkKf):_bestBase(copyable);
+        }
+      }
       finishCopyKf(atkKey,tgtKey,pick);
     }
     return;
@@ -4192,8 +4210,15 @@ function autoAct(key){
       if(cd>0||c.mp.cur<kf.消耗内力)continue;
       avail.push({name:kfName,kf});
     }
+    // 复制武功优先使用
+    const cpName=G.copiedKf?.[key];
+    const cpSt=(G.statuses[key]||[]).some(s=>s.名称==='小无相功'&&s.剩余回合>0);
+    if(cpName&&cpSt){
+      const cpKf=KUNGFU_LIB[cpName];
+      if(cpKf&&cpKf.消耗内力>0&&(G.cds[key]?.[cpName]||0)<=0&&c.mp.cur>=cpKf.消耗内力) usedKf=cpName;
+    }
     // 血量<30%时优先回血
-    if(hpPct<0.1){
+    if(!usedKf&&hpPct<0.1){
       const heal=avail.find(a=>a.kf.影响状态&&a.kf.影响状态.名称==='回血');
       if(heal) usedKf=heal.name;
     }
@@ -4202,17 +4227,9 @@ function autoAct(key){
       const best=avail.reduce((a,b)=>(b.kf.基础效果值||0)>(a.kf.基础效果值||0)?b:a);
       usedKf=best.name;
     }
-    // 检查复制武功
-    if(!usedKf){
-      const cpName=G.copiedKf?.[key];
-      const cpSt=(G.statuses[key]||[]).some(s=>s.名称==='小无相功'&&s.剩余回合>0);
-      if(cpName&&cpSt){
-        const cpKf=KUNGFU_LIB[cpName];
-        if(cpKf&&cpKf.消耗内力>0&&(G.cds[key]?.[cpName]||0)<=0&&c.mp.cur>=cpKf.消耗内力) usedKf=cpName;
-      }
-    }
   }
   if(usedKf){
+    if(usedKf==='小无相功'){ doKungfu(key,'小无相功',[tgtKey]); return; }
     const kf=KUNGFU_LIB[usedKf];
     c.mp.cur=Math.max(0,c.mp.cur-kf.消耗内力); updateCard(key);
     const range=kf.作用范围||'';
@@ -4293,17 +4310,17 @@ function enemyAct(key){
       if(cd>0||c.mp.cur<kf.消耗内力)continue;
       avail.push({name:kfName,kf});
     }
-    // 复制武功也加入候选
+    // 复制武功优先使用
     const cpName=G.copiedKf?.[key];
     const cpSt=(G.statuses[key]||[]).some(s=>s.名称==='小无相功'&&s.剩余回合>0);
     if(cpName&&cpSt){
       const cpKf=KUNGFU_LIB[cpName];
       if(cpKf&&cpKf.消耗内力>0&&(G.cds[key]?.[cpName]||0)<=0&&c.mp.cur>=cpKf.消耗内力)
-        avail.push({name:cpName,kf:cpKf});
+        usedKf=cpName;
     }
 
     // 自保：自身血量<20%时40%概率优先自回血
-    if(hpPct<0.2&&Math.random()<0.1){
+    if(!usedKf&&hpPct<0.2&&Math.random()<0.1){
       const heal=avail.find(a=>_isHeal(a.kf)&&(a.kf.作用范围||'').includes('仅我'));
       if(heal) usedKf=heal.name;
     }
@@ -4333,6 +4350,7 @@ function enemyAct(key){
   }
 
   if(usedKf){
+    if(usedKf==='小无相功'){ doKungfu(key,'小无相功',[tgtKey]); return; }
     const kf=KUNGFU_LIB[usedKf];
     c.mp.cur=Math.max(0,c.mp.cur-kf.消耗内力); updateCard(key);
     const range=kf.作用范围||'';
@@ -4353,7 +4371,6 @@ function enemyAct(key){
       }
     } else {
       if(isAlly){
-        // 治疗类：优先治疗血量最低的队友
         if(_isHeal(kf)){
           const lowest=pool.reduce((a,b)=>(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b);
           tgts=[lowest];
