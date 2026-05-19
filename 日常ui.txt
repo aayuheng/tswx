@@ -2943,6 +2943,21 @@ function renderParty() {
             _cleanLearned(data.stat_data.玩家, '玩家');
             const _allies = data.stat_data.我方队友;
             if(_allies){ for(const ak of Object.keys(_allies)) _cleanLearned(_allies[ak], ak); }
+            // ── 越狱审查：删除超等级武功 ──
+            const _auditLevel = function(charObj){
+              if(!charObj) return;
+              const lv = charObj.基础信息?.等级 || 1;
+              const arr = Array.isArray(charObj.领悟功法) ? charObj.领悟功法 : [];
+              for(let i=arr.length-1; i>=0; i--){
+                const kf = lib[arr[i]]; if(!kf) continue;
+                if((kf.等级要求||1) > lv){
+                  if(charObj.主运内功 === arr[i]) charObj.主运内功 = '';
+                  arr.splice(i, 1);
+                }
+              }
+            };
+            _auditLevel(data.stat_data.玩家);
+            if(_allies){ for(const ak of Object.keys(_allies)) _auditLevel(_allies[ak]); }
             // ── 修正玩家属性 ──
             const player = data.stat_data?.玩家;
             if (player) {
