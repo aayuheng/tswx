@@ -3148,12 +3148,14 @@ function exitSelect(){
 function cancelSelect(){
   if(G.phase!=='selectTarget')return;
   const wasItem=G.pending?.type==='item';
+  const wasSsb=G.pending?.type==='ssb_tgt';
+  if(wasSsb){ G.pending.resolve(null); }
   G.pending=null;
   exitSelect();
+  if(wasSsb)return;
   G.phase='waitInput';
   q('action-zone').classList.remove('off');
   clearBtns(); clearAllPanels();
-  // 物品取消时返回物品面板
   if(wasItem){ q('b-item').classList.add('on'); buildItemPanel(); }
 }
 
@@ -3189,6 +3191,19 @@ function onCardClick(key){
       log(`【相邻】同时波及 ${gA(side)?.name}`,'l-buff');
     }
     doKungfu(G.curKey,act.kf,tgts);
+  } else if(act.type==='ssb_tgt'){
+    if(act.isAdj){
+      const all=aliveE(), idx=all.indexOf(key), tgts=[key];
+      const candidates=[];
+      if(idx>0)candidates.push(all[idx-1]);
+      if(idx<all.length-1)candidates.push(all[idx+1]);
+      if(candidates.length){
+        const side=candidates[Math.floor(Math.random()*candidates.length)];
+        tgts.push(side);
+        log(`【相邻】同时波及 ${gA(side)?.name}`,'l-buff');
+      }
+      act.resolve(tgts);
+    } else { act.resolve([key]); }
   }
 }
 
@@ -3485,8 +3500,8 @@ function getWeaponSkill(key){
 }
 
 // ── 普攻 ─────────────────────────────────────────────────
-async function doNormalAttack(atkKey,tgtKey){
-  const atk=gA(atkKey),tgt=gA(tgtKey); if(!atk||!tgt){endTurn(atkKey);return;}
+async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
+  const atk=gA(atkKey),tgt=gA(tgtKey); if(!atk||!tgt){if(!skipEndTurn)endTurn(atkKey);return;}
   const aShn=getAttr(atkKey,'身法'), tShn=getAttr(tgtKey,'身法');
   let evade=clamp(5+(tShn-aShn)/100*10,5,70)/100;
   const evUp=(G.statuses[tgtKey]||[]).find(s=>s.名称==='闪避提升');
@@ -3579,7 +3594,7 @@ async function doNormalAttack(atkKey,tgtKey){
     log(`${tgt.name}【斗转星移】以彼之道还施彼身 → ${atk.name} -${cDmg}`,'l-crit');
     floatDmg(q(`card-${atkKey}`),`斗转-${cDmg}`,'hsl(200,70%,55%)');
   }
-  endTurn(atkKey);
+  if(!skipEndTurn)endTurn(atkKey);
 }
 
 // ── 武功面板 ─────────────────────────────────────────────
@@ -3621,6 +3636,7 @@ function buildKfPanel(){
       if(nm==='药王毒术')return `被动 中毒伤害+${pct}`;
       if(nm==='失明')return `失明 ${dur}回合 成功${rate}%`;
       if(nm==='免疫异常')return `免疫异常${dur===-1?' 永久':' '+dur+'回合'}`;
+      if(nm==='双手互搏')return '分心二用，连发两招';
       return `${nm}${rate<100?' 成功'+rate+'%':''}`;
     })();
     const row=document.createElement('div');
@@ -3734,6 +3750,22 @@ function doKungfu(atkKey,kfName,tgtKeys){
     }
     return;
   }
+  // ── 双手互搏特殊处理 ──
+  if(kfName==='双手互搏'){
+    if((kf.冷却?.[0]||0)>0){ G.cds[atkKey]=G.cds[atkKey]||{}; G.cds[atkKey][kfName]=kf.冷却[0]+1; }
+    applyStatus(atkKey,{名称:'双手互搏',数值:1,剩余回合:1,来源:'双手互搏'});
+    log(`${atk.name} 施展双手互搏，分心二用！`,'l-buff');
+    floatDmg(q(`card-${atkKey}`),'双手互搏','hsl(42,70%,60%)','14px');
+    const _ssbCard=q(`card-${atkKey}`);
+    if(_ssbCard&&typeof FX_REG['双手互搏']==='function'){const _r=_ssbCard.getBoundingClientRect();const _cx=_r.left+_r.width/2,_cy=_r.top+_r.height/2;FX_REG['双手互搏'](_cx,_cy).forEach(e=>FxEngine.spawn(e));}
+    const isPlayer=atkKey==='player'||(gA(atkKey)?.type==='ally');
+    if(isPlayer&&!_autoMode){
+      showSsbPanel(atkKey,1,null);
+    } else {
+      aiExecuteSsb(atkKey);
+    }
+    return;
+  }
   // 龙象之力：群体攻击前预消耗，存临时乘数
   const _lxHealKf=kf.作用范围&&(kf.作用范围.includes('我方')||kf.作用范围.includes('仅我'));
   let _lxMul=1;
@@ -3784,6 +3816,199 @@ function finishCopyKf(atkKey,tgtKey,kfName){
   log(`${atk.name} 施展小无相功，复制了${tgt?.name||''}的【${kfName}】！`,'l-buff');
   floatDmg(q(`card-${atkKey}`),`复制${kfName}`,'hsl(280,60%,65%)','14px');
   updateCard(atkKey);
+  endTurn(atkKey);
+}
+
+// ── 双手互搏：武功选择面板 ──
+function showSsbPanel(atkKey,step,firstKfName){
+  const panel=q('p-kf'); panel.innerHTML=''; panel.classList.add('open');
+  const c=gA(atkKey); if(!c)return;
+  const curMp=step===2?c.mp.cur-(KUNGFU_LIB[firstKfName]?.消耗内力||0):c.mp.cur;
+  const title=step===1?'【双手互搏】选择第一招':'【双手互搏】选择第二招';
+  panel.insertAdjacentHTML('beforeend','<div style="padding:8px 10px;color:hsl(42,80%,65%);font-size:13px;font-weight:bold;border-bottom:1px solid rgba(255,200,50,0.3);text-shadow:0 0 6px rgba(255,200,50,0.3)">'+title+'</div>');
+  let hasAvail=false;
+  for(const kfName of c.kungfu){
+    if(kfName==='双手互搏')continue;
+    if(step===2&&kfName===firstKfName)continue;
+    const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
+    if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    const cd=G.cds[atkKey]?.[kfName]||0;
+    const mpOk=curMp>=kf.消耗内力;
+    const cdOk=cd<=0;
+    const off=!mpOk||!cdOk;
+    const cdDisplay=cd;
+    const totalCd=kf.冷却?kf.冷却[0]:0;
+    const cdStr=cdOk?(totalCd>0?'就绪('+totalCd+'回合)':'无CD'):'冷却'+cdDisplay+'/'+totalCd;
+    const rng=(kf.作用范围||'').replace('敌方','敌').replace('我方','友').replace('群体','群').replace('仅我','己');
+    const row=document.createElement('div');
+    row.className='kf-row'+(off?' kf-off':'');
+    row.style.position='relative';
+    row.innerHTML='<div><div style="display:flex;align-items:center;gap:4px"><span class="kf-name">'+kfName+'</span><span class="kf-type '+kf.类别+'">'+kf.类别+'</span></div><div class="kf-desc">'+(kf.描述||'')+'</div></div><div class="kf-mp">内力<br>'+kf.消耗内力+'</div><div class="kf-cd '+(cdOk?'rdy':'cld')+'">'+cdStr+'</div><div class="kf-rng">'+rng+'</div>'+((!mpOk&&cdOk)?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">内力不足</div>':'')+((!cdOk)?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">冷却中：'+cdDisplay+'/'+totalCd+'</div>':'');
+    if(!off){
+      hasAvail=true;
+      row.addEventListener('click',function(){
+        if(step===1){ showSsbPanel(atkKey,2,kfName); }
+        else { clearAllPanels(); executeSsb(atkKey,firstKfName,kfName); }
+      });
+    }
+    panel.appendChild(row);
+  }
+  if(!hasAvail&&step===2) panel.insertAdjacentHTML('beforeend','<div style="padding:8px;text-align:center;color:#e44;font-size:12px">无可用第二招（内力不足或全部冷却中）</div>');
+  var cancelBtn=document.createElement('div');
+  cancelBtn.style.cssText='padding:10px;text-align:center;cursor:pointer;color:hsl(0,60%,65%);font-size:12px;border-top:1px solid rgba(255,255,255,0.1);margin-top:4px';
+  cancelBtn.textContent='取消双手互搏（返还内力）';
+  cancelBtn.addEventListener('click',function(){ cancelSsb(atkKey); });
+  panel.appendChild(cancelBtn);
+}
+
+function cancelSsb(atkKey){
+  clearAllPanels();
+  var atk=gA(atkKey); if(!atk)return;
+  var kf=KUNGFU_LIB['双手互搏'];
+  atk.mp.cur=Math.min(atk.mp.max,atk.mp.cur+(kf?kf.消耗内力:800));
+  if(G.cds[atkKey])G.cds[atkKey]['双手互搏']=0;
+  G.statuses[atkKey]=(G.statuses[atkKey]||[]).filter(function(s){return s.名称!=='双手互搏';});
+  updateCard(atkKey);
+  log(atk.name+' 收回双手互搏','l-sys');
+  G.phase='waitInput';
+  q('action-zone').classList.remove('off');
+  clearBtns();
+}
+
+function ssbGetTargets(atkKey,kfName,kf,step){
+  return new Promise(function(resolve){
+    var range=kf.作用范围||'敌方单体';
+    if(range.includes('仅我')){resolve([atkKey]);return;}
+    if(range.includes('我方')&&(range.includes('群体')||range.includes('全体'))){resolve(aliveP());return;}
+    if(range.includes('群体')||range.includes('全体')){resolve(aliveE());return;}
+    var label=step===1?'【双手互搏·第一招】':'【双手互搏·第二招】';
+    q('turn-banner').textContent=label+' 选择【'+kfName+'】的目标';
+    q('turn-banner').style.cssText='font-size:16px;color:hsl(42,80%,65%);text-shadow:0 0 8px rgba(255,200,50,0.5);animation:hBlink 0.8s ease-in-out infinite alternate';
+    var side=range.includes('我方')?'ally':'enemy';
+    G.pending={type:'ssb_tgt',resolve:resolve,kfName:kfName,kf:kf,isAdj:range.includes('相邻')};
+    G.phase='selectTarget';
+    q('tgt-hint').querySelector('span').textContent='▼ '+label+' 点击选择目标 ▼';
+    q('tgt-hint').classList.add('show');
+    var keys=side==='enemy'?aliveE():aliveP();
+    for(var i=0;i<keys.length;i++) q('card-'+keys[i])&&q('card-'+keys[i]).classList.add('selectable');
+  });
+}
+
+async function executeSsb(atkKey,kf1Name,kf2Name){
+  var atk=gA(atkKey); if(!atk||!atk.alive){endTurn(atkKey);return;}
+  var kf1=KUNGFU_LIB[kf1Name], kf2=KUNGFU_LIB[kf2Name];
+  if(!kf1||!kf2){endTurn(atkKey);return;}
+  G.phase='acting';
+  // 第一招
+  var tgts1=await ssbGetTargets(atkKey,kf1Name,kf1,1);
+  if(!tgts1){endTurn(atkKey);return;}
+  G.phase='acting';
+  exitSelect();
+  q('turn-banner').style.cssText='';
+  atk.mp.cur=Math.max(0,atk.mp.cur-kf1.消耗内力); updateCard(atkKey);
+  if((kf1.冷却?.[0]||0)>0){G.cds[atkKey]=G.cds[atkKey]||{};G.cds[atkKey][kf1Name]=kf1.冷却[0]+1;}
+  var _lxHeal1=kf1.作用范围&&(kf1.作用范围.includes('我方')||kf1.作用范围.includes('仅我'));
+  var _lxMul1=1;
+  if(!_lxHeal1){var _lxB1=(G.statuses[atkKey]||[]).find(function(s){return s.名称==='龙象之力';});if(_lxB1){var st1=Math.round(_lxB1.数值/0.1);_lxMul1=1+_lxB1.数值;G.statuses[atkKey]=G.statuses[atkKey].filter(function(s){return s.名称!=='龙象之力';});updateCard(atkKey);log(atk.name+'【龙象之力】'+st1+'层爆发！伤害×'+_lxMul1.toFixed(1),'l-crit');}}
+  G._lxMul=_lxMul1;
+  for(var i=0;i<tgts1.length;i++){var t=gA(tgts1[i]);if(t&&t.alive)await doKfOnTgt(atkKey,kf1Name,kf1,tgts1[i]);}
+  G._lxMul=1;
+  if(checkOver())return;
+  if(!gA(atkKey)||!gA(atkKey).alive){endTurn(atkKey);return;}
+  // 500ms间隔
+  await new Promise(function(r){setTimeout(r,spd(500));});
+  // 第二招
+  var tgts2=await ssbGetTargets(atkKey,kf2Name,kf2,2);
+  if(!tgts2){endTurn(atkKey);return;}
+  G.phase='acting';
+  exitSelect();
+  q('turn-banner').style.cssText='';
+  atk.mp.cur=Math.max(0,atk.mp.cur-kf2.消耗内力); updateCard(atkKey);
+  if((kf2.冷却?.[0]||0)>0){G.cds[atkKey]=G.cds[atkKey]||{};G.cds[atkKey][kf2Name]=kf2.冷却[0]+1;}
+  var _lxHeal2=kf2.作用范围&&(kf2.作用范围.includes('我方')||kf2.作用范围.includes('仅我'));
+  var _lxMul2=1;
+  if(!_lxHeal2){var _lxB2=(G.statuses[atkKey]||[]).find(function(s){return s.名称==='龙象之力';});if(_lxB2){var st2=Math.round(_lxB2.数值/0.1);_lxMul2=1+_lxB2.数值;G.statuses[atkKey]=G.statuses[atkKey].filter(function(s){return s.名称!=='龙象之力';});updateCard(atkKey);log(atk.name+'【龙象之力】'+st2+'层爆发！伤害×'+_lxMul2.toFixed(1),'l-crit');}}
+  G._lxMul=_lxMul2;
+  for(var j=0;j<tgts2.length;j++){var t2=gA(tgts2[j]);if(t2&&t2.alive)await doKfOnTgt(atkKey,kf2Name,kf2,tgts2[j]);}
+  G._lxMul=1;
+  // 移除双手互搏状态
+  G.statuses[atkKey]=(G.statuses[atkKey]||[]).filter(function(s){return s.名称!=='双手互搏';});
+  endTurn(atkKey);
+}
+
+async function aiExecuteSsb(atkKey){
+  var c=gA(atkKey); if(!c||!c.alive){endTurn(atkKey);return;}
+  var avail=[];
+  for(var i=0;i<(c.kungfu||[]).length;i++){
+    var kfName=c.kungfu[i];
+    if(kfName==='双手互搏')continue;
+    var kf=KUNGFU_LIB[kfName]; if(!kf)continue;
+    if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    var cd=G.cds[atkKey]?.[kfName]||0;
+    if(cd>0||c.mp.cur<kf.消耗内力)continue;
+    avail.push({name:kfName,kf:kf});
+  }
+  avail.sort(function(a,b){return(b.kf.基础效果值||0)-(a.kf.基础效果值||0);});
+  var pick1=avail[0]||null;
+  var pick2=null;
+  if(pick1){
+    var remainMp=c.mp.cur-pick1.kf.消耗内力;
+    for(var j=0;j<avail.length;j++){
+      if(avail[j].name===pick1.name)continue;
+      if(remainMp>=avail[j].kf.消耗内力){pick2=avail[j];break;}
+    }
+  }
+  G.phase='acting';
+  var isEnemy=G.eKeys.includes(atkKey);
+  var enemies=isEnemy?aliveP():aliveE();
+  var allies=isEnemy?aliveE():aliveP();
+  function pickTgt(kf){
+    var range=kf.作用范围||'敌方单体';
+    if(range.includes('仅我'))return[atkKey];
+    if(range.includes('我方')&&(range.includes('群体')||range.includes('全体')))return[].concat(allies);
+    if(range.includes('群体')||range.includes('全体'))return[].concat(enemies);
+    if(range.includes('我方')){
+      if(kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内')){
+        return[allies.reduce(function(a,b){return(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b;})];
+      }
+      return[allies[Math.floor(Math.random()*allies.length)]];
+    }
+    if(range.includes('相邻')){
+      var lowest=enemies.reduce(function(a,b){return(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b;});
+      var tgts=[lowest],idx=enemies.indexOf(lowest);
+      if(idx>0)tgts.push(enemies[idx-1]);
+      else if(idx<enemies.length-1)tgts.push(enemies[idx+1]);
+      return tgts;
+    }
+    var lowest2=enemies.reduce(function(a,b){return(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b;});
+    return[lowest2];
+  }
+  // 第一招
+  if(pick1){
+    var tgts1=pickTgt(pick1.kf);
+    c.mp.cur=Math.max(0,c.mp.cur-pick1.kf.消耗内力); updateCard(atkKey);
+    if((pick1.kf.冷却?.[0]||0)>0){G.cds[atkKey]=G.cds[atkKey]||{};G.cds[atkKey][pick1.name]=pick1.kf.冷却[0]+1;}
+    for(var k=0;k<tgts1.length;k++){var t=gA(tgts1[k]);if(t&&t.alive)await doKfOnTgt(atkKey,pick1.name,pick1.kf,tgts1[k]);}
+    if(checkOver())return;
+    if(!gA(atkKey)||!gA(atkKey).alive){endTurn(atkKey);return;}
+  } else {
+    var tgtKey=enemies[Math.floor(Math.random()*enemies.length)];
+    await doNormalAttack(atkKey,tgtKey,true);
+    if(checkOver())return;
+    if(!gA(atkKey)||!gA(atkKey).alive){endTurn(atkKey);return;}
+  }
+  await new Promise(function(r){setTimeout(r,spd(500));});
+  // 第二招
+  if(pick2){
+    var tgts2=pickTgt(pick2.kf);
+    c.mp.cur=Math.max(0,c.mp.cur-pick2.kf.消耗内力); updateCard(atkKey);
+    if((pick2.kf.冷却?.[0]||0)>0){G.cds[atkKey]=G.cds[atkKey]||{};G.cds[atkKey][pick2.name]=pick2.kf.冷却[0]+1;}
+    for(var m=0;m<tgts2.length;m++){var t2=gA(tgts2[m]);if(t2&&t2.alive)await doKfOnTgt(atkKey,pick2.name,pick2.kf,tgts2[m]);}
+  } else {
+    var tgtKey2=enemies.length?enemies[Math.floor(Math.random()*enemies.length)]:null;
+    if(tgtKey2) await doNormalAttack(atkKey,tgtKey2,true);
+  }
+  G.statuses[atkKey]=(G.statuses[atkKey]||[]).filter(function(s){return s.名称!=='双手互搏';});
   endTurn(atkKey);
 }
 
@@ -4263,6 +4488,7 @@ function autoAct(key){
   }
   if(usedKf){
     if(usedKf==='小无相功'){ doKungfu(key,'小无相功',[tgtKey]); return; }
+    if(usedKf==='双手互搏'){ doKungfu(key,'双手互搏',[key]); return; }
     const kf=KUNGFU_LIB[usedKf];
     c.mp.cur=Math.max(0,c.mp.cur-kf.消耗内力); updateCard(key);
     const range=kf.作用范围||'';
@@ -4384,6 +4610,7 @@ function enemyAct(key){
 
   if(usedKf){
     if(usedKf==='小无相功'){ doKungfu(key,'小无相功',[tgtKey]); return; }
+    if(usedKf==='双手互搏'){ doKungfu(key,'双手互搏',[key]); return; }
     const kf=KUNGFU_LIB[usedKf];
     c.mp.cur=Math.max(0,c.mp.cur-kf.消耗内力); updateCard(key);
     const range=kf.作用范围||'';
