@@ -4288,7 +4288,8 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
         const stTarget=(isImm||isImmAbn||isAtkWithGoodBuff)?atk:tgt;
         // 免疫异常拦截：目标身上有免疫异常时，debuff/控制无法施加
         const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','内伤','失明','攻击下降','防御下降','灼烧'];
-        if(DEBUFFS.includes(s.名称)){
+        const _isDebuff=DEBUFFS.some(d=>s.名称===d||s.名称.startsWith(d+'·'));
+        if(_isDebuff){
           const tgtSts=G.statuses[tgtKey]||[];
           if(tgtSts.find(x=>x.名称==='免疫异常')){
             const _el=q(`card-${tgtKey}`);
@@ -4304,9 +4305,12 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
         // 挂给自己的buff：+1补偿当回合扣减
         const _baseRounds=s.影响回合??3;
         const selfBuff=stKey===atkKey;
-        const st={名称:s.名称,数值:s.数值||0,剩余回合:selfBuff?(_baseRounds+1):_baseRounds};
+        const DOT_TYPES=['中毒','流血','灼烧','内伤'];
+        const _dotBase=DOT_TYPES.find(d=>s.名称===d);
+        const stName=_dotBase?(s.名称+'·'+kfName):s.名称;
+        const st={名称:stName,数值:s.数值||0,剩余回合:selfBuff?(_baseRounds+1):_baseRounds};
         if(s.名称==='斗转星移') st.成功率=s.成功率||0.55;
-        if(st.名称==='中毒'){const _yw=(G.statuses[atkKey]||[]).find(x=>x.名称==='药王毒术');if(_yw)st.数值=st.数值*(1+(_yw.数值||0.5));}
+        if(stName.startsWith('中毒')){const _yw=(G.statuses[atkKey]||[]).find(x=>x.名称==='药王毒术');if(_yw)st.数值=st.数值*(1+(_yw.数值||0.5));}
         G.statuses[stKey]=G.statuses[stKey]||[];
         const exist=G.statuses[stKey].find(x=>x.名称===st.名称);
         const NO_STACK=['点穴','眩晕','冰冻','反弹','反击','封穴','斗转星移'];
@@ -4788,12 +4792,12 @@ function processStatusTick(key){
   const sts=G.statuses[key]||[]; if(!sts.length)return;
   const c=gA(key); if(!c||!c.alive)return;
   for(const s of sts){
-    if(s.名称==='流血'||s.名称==='中毒'||s.名称==='灼烧'){
+    if(s.名称.startsWith('流血')||s.名称.startsWith('中毒')||s.名称.startsWith('灼烧')){
       const d=s.数值>0&&s.数值<1?Math.floor(c.hp.max*s.数值):Math.floor(s.数值||c.hp.max*0.05);
       dealDmg(key,d);
       log(`${c.name}【${s.名称}】-${d}`,'l-dmg');
     }
-    if(s.名称==='内伤'){
+    if(s.名称.startsWith('内伤')){
       const d=s.数值>0&&s.数值<1?Math.floor(c.mp.max*s.数值):Math.floor(s.数值||c.mp.max*0.05);
       if(c.mp.cur>=d){ c.mp.cur-=d; log(`${c.name}【内伤】内力-${d}`,'l-dmg'); }
       else { const lack=d-c.mp.cur; c.mp.cur=0; dealDmg(key,lack); log(`${c.name}【内伤】内力不足，气血-${lack}`,'l-dmg'); }
