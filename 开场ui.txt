@@ -2679,6 +2679,7 @@ async function _wsFetchGithub() {
           var parsed = _wsParseConfig(txt);
           mod.modName = parsed.name || '';
           mod._parsedConfigs = parsed.configs;
+          mod._parsedDisableEntries = parsed.disableEntries || [];
         }
       } catch(e) {}
     }
@@ -2692,11 +2693,17 @@ function _wsParseConfig(text) {
   var configs = [];
   var current = null;
   var modName = '';
+  var disableEntries = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line) continue;
     if (line.indexOf('名字：') === 0 || line.indexOf('名字:') === 0) {
       modName = line.split(/[：:]/)[1].trim();
+      continue;
+    }
+    if (line.indexOf('关闭世界书：') === 0 || line.indexOf('关闭世界书:') === 0) {
+      var deName = line.split(/[：:]/)[1].trim();
+      if (deName) disableEntries.push(deName);
       continue;
     }
     if (line.indexOf('触发策略') === 0) {
@@ -2729,7 +2736,7 @@ function _wsParseConfig(text) {
     }
   }
   if (current) configs.push(current);
-  return { name: modName, configs: configs };
+  return { name: modName, configs: configs, disableEntries: disableEntries };
 }
 
 function _wsMatchConfig(configs, entryName) {
@@ -2910,11 +2917,13 @@ async function _wsInstallMod(modId) {
     if (!books || !books.primary) throw new Error('未找到角色世界书');
 
     var configs = mod._parsedConfigs || [];
+    var disableEntries = mod._parsedDisableEntries || [];
     if (!mod._parsedConfigs && mod.configUrl) {
       var cr = await fetch(mod.configUrl);
       if (cr.ok) {
         var parsed = _wsParseConfig(await cr.text());
         configs = parsed.configs;
+        disableEntries = parsed.disableEntries || [];
       }
     }
 
@@ -2945,10 +2954,23 @@ async function _wsInstallMod(modId) {
       }]);
     }
 
+    if (disableEntries.length > 0 && api.replaceBook) {
+      var allEntries = await api.getBook(books.primary);
+      var changed = false;
+      for (var di = 0; di < allEntries.length; di++) {
+        if (disableEntries.indexOf(allEntries[di].name) !== -1 && allEntries[di].enabled) {
+          allEntries[di].enabled = false;
+          changed = true;
+        }
+      }
+      if (changed) await api.replaceBook(books.primary, allEntries, { render: 'debounced' });
+    }
+
     var displayName = mod.modName || '无名mod';
+    var extraMsg = disableEntries.length > 0 ? '\n已关闭条目：' + disableEntries.join('、') : '';
     if (area) {
       area.innerHTML = '<div class="ws-detail"><div class="ws-detail-title">安装成功</div>'
-        + '<div class="ws-detail-desc"><div style="white-space:pre-wrap;">' + _wsEscHtml(displayName) + ' 已添加 ' + mod.entries.length + ' 个世界书条目。</div></div></div>';
+        + '<div class="ws-detail-desc"><div style="white-space:pre-wrap;">' + _wsEscHtml(displayName) + ' 已添加 ' + mod.entries.length + ' 个世界书条目。' + _wsEscHtml(extraMsg) + '</div></div></div>';
     }
     _wsLoadAvailable();
   } catch(e) {
@@ -3019,13 +3041,38 @@ async function _wsUninstallMod(modId) {
     if (!api || !api.replaceBook) throw new Error('世界书API不可用');
     var books = api.getNames('current');
     if (!books || !books.primary) throw new Error('未找到角色世界书');
+
+    var disableEntries = [];
+    var mod = _wsModsCache && _wsModsCache[modId];
+    if (mod && mod._parsedDisableEntries) {
+      disableEntries = mod._parsedDisableEntries;
+    } else if (mod && mod.configUrl) {
+      try {
+        var cr = await fetch(mod.configUrl, { cache: 'no-store' });
+        if (cr.ok) {
+          var parsed = _wsParseConfig(await cr.text());
+          disableEntries = parsed.disableEntries || [];
+        }
+      } catch(e2) {}
+    }
+
     var entries = await api.getBook(books.primary);
     var prefix = '【' + modId + '】';
     var filtered = entries.filter(function(e){ return e.name.indexOf(prefix) !== 0; });
     var removed = entries.length - filtered.length;
+
+    if (disableEntries.length > 0) {
+      for (var di = 0; di < filtered.length; di++) {
+        if (disableEntries.indexOf(filtered[di].name) !== -1 && !filtered[di].enabled) {
+          filtered[di].enabled = true;
+        }
+      }
+    }
+
     await api.replaceBook(books.primary, filtered, { render: 'debounced' });
+    var extraMsg = disableEntries.length > 0 ? '\n已恢复条目：' + disableEntries.join('、') : '';
     area.innerHTML = '<div class="ws-detail"><div class="ws-detail-title">删除成功</div>'
-      + '<div class="ws-detail-desc">已移除 ' + removed + ' 个条目。</div></div>';
+      + '<div class="ws-detail-desc">已移除 ' + removed + ' 个条目。' + _wsEscHtml(extraMsg) + '</div></div>';
     _wsLoadInstalled();
   } catch(e) {
     area.innerHTML = '<div class="ws-detail"><div class="ws-detail-title">删除失败</div>'
