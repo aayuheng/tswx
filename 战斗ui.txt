@@ -2688,6 +2688,7 @@ async function fixAllyStats(mvuData){
 // ── 越狱审查：删除超等级武功 ─────────────────────────────────
 async function auditIllegalKungfu(mvuData){
   const sd=mvuData.stat_data; if(!sd)return;
+  const skipPlayer=sd.$mod&&sd.$mod.魂穿;
   const removed=[];
   const check=(label,charData)=>{
     const lv=charData.基础信息?.等级||1;
@@ -2703,7 +2704,8 @@ async function auditIllegalKungfu(mvuData){
       }
     }
   };
-  if(sd.玩家) check(sd.玩家.基础信息?.姓名||'玩家',sd.玩家);
+  if(sd.玩家&&!skipPlayer) check(sd.玩家.基础信息?.姓名||'玩家',sd.玩家);
+  if(sd.玩家&&skipPlayer){/* 魂穿跳过玩家审查 */}
   for(const[name,ally]of Object.entries(sd.我方队友||{})){
     check(ally.基础信息?.姓名||name,ally);
   }
