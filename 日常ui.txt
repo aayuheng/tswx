@@ -2863,26 +2863,50 @@ async function _checkTimeRegression(){
   if(!curDate||!curTime) return;
   var chatId=_getChatId();
   var cacheKey='wx_'+chatId+'_时辰';
+  // 获取最新AI消息ID
+  var aiMsgId=null;
+  try{
+    var lastId=getLastMessageId();
+    if(lastId>=0){
+      var msgs=getChatMessages(-1,{role:'assistant'});
+      if(msgs&&msgs.length>0) aiMsgId=msgs[0].message_id!=null?msgs[0].message_id:lastId;
+      else aiMsgId=lastId;
+    }
+  }catch(e){}
+  if(aiMsgId==null) try{ aiMsgId=getLastMessageId(); }catch(e){}
   var cached=localStorage.getItem(cacheKey);
   if(!cached){
-    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime,msgId:aiMsgId}));
     return;
   }
   var cacheObj;
   try{ cacheObj=JSON.parse(cached); }catch(e){
-    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime,msgId:aiMsgId}));
     return;
   }
-  var cachedDate=cacheObj.date||'', cachedTime=cacheObj.time||'';
+  // 旧缓存无msgId时，补写并跳过本次检测
+  if(cacheObj.msgId==null){
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime,msgId:aiMsgId}));
+    return;
+  }
+  var cachedDate=cacheObj.date||'', cachedTime=cacheObj.time||'', cachedMsgId=cacheObj.msgId;
+  // 消息ID未前进（删楼/回退），只更新缓存不修正日期
+  if(aiMsgId!=null && aiMsgId<=cachedMsgId){
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime,msgId:aiMsgId}));
+    return;
+  }
   if(curDate!==cachedDate){
-    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime,msgId:aiMsgId}));
     return;
   }
   var cachedIdx=_TIME_ORDER.indexOf(cachedTime);
   var curIdx=_TIME_ORDER.indexOf(curTime);
-  if(cachedIdx<0||curIdx<0) return;
+  if(cachedIdx<0||curIdx<0){
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime,msgId:aiMsgId}));
+    return;
+  }
   if(curIdx>=cachedIdx){
-    if(curIdx>cachedIdx) localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime}));
+    localStorage.setItem(cacheKey, JSON.stringify({date:curDate,time:curTime,msgId:aiMsgId}));
     return;
   }
   var parsed=_parseGameDateFull(curDate);
@@ -2890,10 +2914,6 @@ async function _checkTimeRegression(){
   var newParsed=_incrementLunarDate(parsed);
   var newDate=_formatFullDate(newParsed);
   var Mvu=window.parent?.Mvu; if(!Mvu) return;
-  var lastId=window.parent.getLastMessageId?.();
-  var msgs=await window.parent.getChatMessages?.('0-'+lastId);
-  var aiMsgId=lastId;
-  if(msgs){ for(var i=msgs.length-1;i>=0;i--){ if(msgs[i].role==='assistant'){aiMsgId=msgs[i].message_id;break;} } }
   var data=await Mvu.getMvuData({type:'message',message_id:aiMsgId});
   if(!data) return;
   data.stat_data=data.stat_data||{};
@@ -2901,7 +2921,7 @@ async function _checkTimeRegression(){
   data.stat_data.世界.日期=newDate;
   await Mvu.replaceMvuData(data,{type:'message',message_id:aiMsgId});
   await loadState();
-  localStorage.setItem(cacheKey, JSON.stringify({date:newDate,time:curTime}));
+  localStorage.setItem(cacheKey, JSON.stringify({date:newDate,time:curTime,msgId:aiMsgId}));
 }
 
 // ══════════════════════════════════════════════
