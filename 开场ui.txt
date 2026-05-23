@@ -2122,7 +2122,7 @@ async function confirmTransmigrate() {
         const entries = await getWB(books.primary);
         const target = entries.find(e => e.name === '勿动');
         if (target) {
-          target.content = `<%_\nif (TavernHelper.getLastMessageId() < 2){\nprint(\`\n【开场】\n注意{{user}}穿越到【${who}】身上，时间是【${when}】的时期。\n请查看原著，**初始化更改变量\\\${玩家}的所有节点**（姓名不改），**注意更新等级、武学等变量，按照原著来**\n同时更要参考\\\${武功}，不可出现上面没有的武功。\n\`);\n}\n_%>`;
+          target.content = `<%_\nif (TavernHelper.getLastMessageId() < 2){\nprint(\`\n【开场】\n注意{{user}}穿越到【${who}】身上，时间是【${when}】的时期。\n请查看原著，**初始化更改变量\\\${玩家}的所有节点**（姓名不改），**注意更新性别、等级、武学等变量，按照原著来**\n同时更要参考\\\${武功}，不可出现上面没有的武功。\n\`);\n}\n_%>`;
           await replaceWB(books.primary, entries, { render: 'debounced' });
           console.log('[魂穿] 世界书"勿动"已写入');
         } else {
@@ -2171,6 +2171,8 @@ async function confirmTransmigrate() {
     }
     _.set(data, 'stat_data.武功', allKungfuRecord);
     console.log('[魂穿] 武功库写入MVU，共', Object.keys(allKungfuRecord).length, '个');
+
+    _.set(data, 'stat_data.$mod.魂穿', 1);
 
     await Mvu.replaceMvuData(data, { type: 'message', message_id: 0 });
 
@@ -2680,6 +2682,7 @@ async function _wsFetchGithub() {
           mod.modName = parsed.name || '';
           mod._parsedConfigs = parsed.configs;
           mod._parsedDisableEntries = parsed.disableEntries || [];
+          mod._parsedMvuInserts = parsed.mvuInserts || [];
         }
       } catch(e) {}
     }
@@ -2694,6 +2697,7 @@ function _wsParseConfig(text) {
   var current = null;
   var modName = '';
   var disableEntries = [];
+  var mvuInserts = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].trim();
     if (!line) continue;
@@ -2704,6 +2708,11 @@ function _wsParseConfig(text) {
     if (line.indexOf('关闭世界书：') === 0 || line.indexOf('关闭世界书:') === 0) {
       var deName = line.split(/[：:]/)[1].trim();
       if (deName) disableEntries.push(deName);
+      continue;
+    }
+    if (line.indexOf('mvu插入：') === 0 || line.indexOf('mvu插入:') === 0) {
+      var mvuKey = line.split(/[：:]/)[1].trim();
+      if (mvuKey) mvuInserts.push(mvuKey);
       continue;
     }
     if (line.indexOf('触发策略') === 0) {
@@ -2736,7 +2745,7 @@ function _wsParseConfig(text) {
     }
   }
   if (current) configs.push(current);
-  return { name: modName, configs: configs, disableEntries: disableEntries };
+  return { name: modName, configs: configs, disableEntries: disableEntries, mvuInserts: mvuInserts };
 }
 
 function _wsMatchConfig(configs, entryName) {
@@ -2918,12 +2927,14 @@ async function _wsInstallMod(modId) {
 
     var configs = mod._parsedConfigs || [];
     var disableEntries = mod._parsedDisableEntries || [];
+    var mvuInserts = mod._parsedMvuInserts || [];
     if (!mod._parsedConfigs && mod.configUrl) {
       var cr = await fetch(mod.configUrl);
       if (cr.ok) {
         var parsed = _wsParseConfig(await cr.text());
         configs = parsed.configs;
         disableEntries = parsed.disableEntries || [];
+        mvuInserts = parsed.mvuInserts || [];
       }
     }
 
@@ -2937,7 +2948,7 @@ async function _wsInstallMod(modId) {
       var posObj = { type: cfg.posType, order: cfg.order || 100 };
       if (cfg.posType === 'at_depth') {
         posObj.role = 'system';
-        posObj.depth = cfg.depth || 4;
+        posObj.depth = (cfg.depth != null) ? cfg.depth : 4;
       }
 
       var stratObj = { type: cfg.strategy, keys: cfg.keys || [] };
@@ -2966,8 +2977,25 @@ async function _wsInstallMod(modId) {
       if (changed) await api.replaceBook(books.primary, allEntries, { render: 'debounced' });
     }
 
+    if (mvuInserts.length > 0) {
+      try {
+        var Mvu = window.parent?.Mvu || window.Mvu;
+        if (Mvu) {
+          var mvuData = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+          if (!mvuData) mvuData = { stat_data: {} };
+          if (!mvuData.stat_data) mvuData.stat_data = {};
+          if (!mvuData.stat_data.$mod) mvuData.stat_data.$mod = {};
+          for (var mi = 0; mi < mvuInserts.length; mi++) {
+            mvuData.stat_data.$mod[mvuInserts[mi]] = 0;
+          }
+          await Mvu.replaceMvuData(mvuData, { type: 'message', message_id: 0 });
+        }
+      } catch(mvuErr) { console.warn('[创意工坊] mvu插入失败:', mvuErr.message); }
+    }
+
     var displayName = mod.modName || '无名mod';
     var extraMsg = disableEntries.length > 0 ? '\n已关闭条目：' + disableEntries.join('、') : '';
+    if (mvuInserts.length > 0) extraMsg += '\n已写入MVU：$mod.' + mvuInserts.join('、$mod.');
     if (area) {
       area.innerHTML = '<div class="ws-detail"><div class="ws-detail-title">安装成功</div>'
         + '<div class="ws-detail-desc"><div style="white-space:pre-wrap;">' + _wsEscHtml(displayName) + ' 已添加 ' + mod.entries.length + ' 个世界书条目。' + _wsEscHtml(extraMsg) + '</div></div></div>';
@@ -3043,15 +3071,21 @@ async function _wsUninstallMod(modId) {
     if (!books || !books.primary) throw new Error('未找到角色世界书');
 
     var disableEntries = [];
+    var mvuInserts = [];
     var mod = _wsModsCache && _wsModsCache[modId];
     if (mod && mod._parsedDisableEntries) {
       disableEntries = mod._parsedDisableEntries;
-    } else if (mod && mod.configUrl) {
+    }
+    if (mod && mod._parsedMvuInserts) {
+      mvuInserts = mod._parsedMvuInserts;
+    }
+    if (mod && mod.configUrl && (!mod._parsedDisableEntries || !mod._parsedMvuInserts)) {
       try {
         var cr = await fetch(mod.configUrl, { cache: 'no-store' });
         if (cr.ok) {
           var parsed = _wsParseConfig(await cr.text());
           disableEntries = parsed.disableEntries || [];
+          mvuInserts = parsed.mvuInserts || [];
         }
       } catch(e2) {}
     }
@@ -3070,7 +3104,24 @@ async function _wsUninstallMod(modId) {
     }
 
     await api.replaceBook(books.primary, filtered, { render: 'debounced' });
+
+    if (mvuInserts.length > 0) {
+      try {
+        var Mvu = window.parent?.Mvu || window.Mvu;
+        if (Mvu) {
+          var mvuData = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+          if (mvuData && mvuData.stat_data && mvuData.stat_data.$mod) {
+            for (var mi = 0; mi < mvuInserts.length; mi++) {
+              delete mvuData.stat_data.$mod[mvuInserts[mi]];
+            }
+            await Mvu.replaceMvuData(mvuData, { type: 'message', message_id: 0 });
+          }
+        }
+      } catch(mvuErr) { console.warn('[创意工坊] mvu删除失败:', mvuErr.message); }
+    }
+
     var extraMsg = disableEntries.length > 0 ? '\n已恢复条目：' + disableEntries.join('、') : '';
+    if (mvuInserts.length > 0) extraMsg += '\n已移除MVU：$mod.' + mvuInserts.join('、$mod.');
     area.innerHTML = '<div class="ws-detail"><div class="ws-detail-title">删除成功</div>'
       + '<div class="ws-detail-desc">已移除 ' + removed + ' 个条目。' + _wsEscHtml(extraMsg) + '</div></div>';
     _wsLoadInstalled();
@@ -3112,7 +3163,7 @@ async function _wsCheckUpdate(modId) {
       if (local.strategy && local.strategy.type !== cfg.strategy) { diffs.push(entry.name + ': 触发策略不同'); continue; }
       if (local.position) {
         if (local.position.type !== cfg.posType) { diffs.push(entry.name + ': 插入位置不同'); continue; }
-        if (cfg.posType === 'at_depth' && local.position.depth !== (cfg.depth||4)) { diffs.push(entry.name + ': 深度不同'); continue; }
+        if (cfg.posType === 'at_depth' && local.position.depth !== ((cfg.depth != null) ? cfg.depth : 4)) { diffs.push(entry.name + ': 深度不同'); continue; }
       }
     }
 
