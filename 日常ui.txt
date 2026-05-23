@@ -3072,7 +3072,7 @@ function renderParty() {
                 }
               }
             };
-            _auditLevel(data.stat_data.玩家);
+            if(!data.stat_data.$mod || !data.stat_data.$mod.魂穿) _auditLevel(data.stat_data.玩家);
             if(_allies){ for(const ak of Object.keys(_allies)) _auditLevel(_allies[ak]); }
             // ── 修正玩家属性 ──
             const player = data.stat_data?.玩家;
