@@ -894,12 +894,21 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
   .ly-box{max-width:95vw}
   /* 分隔线 */
   .wx-divider{padding:0 10px}
+  /* 悟道弹窗 */
+  .wd-modal{width:calc(100vw - 12px);border-radius:14px}
+  .wd-header{padding:12px 14px 10px}
+  .wd-title{font-size:18px;letter-spacing:2px}
+  .wd-body{padding:12px 14px}
+  .wd-btn-row{padding:10px 14px;gap:6px}
+  .wd-btn{padding:8px 4px;font-size:11px;letter-spacing:1px;min-width:0;flex:1 1 calc(50% - 6px)}
+  .wd-slot-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .wd-grow-grid{grid-template-columns:auto 50px 24px 1fr!important;gap:4px 6px!important;font-size:11px!important}
 }
 /* ── 悟道弹窗 ── */
 .wd-overlay{position:absolute;left:0;right:0;background:rgba(0,0,0,.78);backdrop-filter:blur(8px);z-index:500;
   display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .35s ease}
 .wd-overlay.open{display:flex;opacity:1}
-.wd-modal{position:relative;width:440px;max-width:calc(100vw - 16px);max-height:92vh;border-radius:20px;
+.wd-modal{position:relative;width:440px;max-width:calc(100vw - 16px);max-height:calc(100% - 16px);border-radius:20px;
   background:linear-gradient(165deg,var(--ink-base),var(--ink-deep));
   border:1px solid var(--gold-dim);box-shadow:0 0 60px rgba(180,150,80,.1),inset 0 1px 0 rgba(255,215,0,.08);
   overflow:hidden;display:flex;flex-direction:column}
@@ -929,7 +938,7 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .wd-slot-icon{font-size:20px;margin-bottom:8px;color:var(--gold-l)}
 .wd-slot-name{font-size:13px;color:var(--text-main);letter-spacing:1.5px;margin-bottom:4px}
 .wd-slot-sub{font-size:10px;color:var(--text-dim)}
-.wd-btn-row{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--gold-line)}
+.wd-btn-row{display:flex;flex-wrap:wrap;gap:8px;padding:14px 20px;border-top:1px solid var(--gold-line)}
 .wd-toast{padding:6px 20px;text-align:center;font-size:11px;color:var(--vermilion-l);opacity:0;transition:opacity .3s;min-height:20px}
 .wd-toast.show{opacity:1}
 .wd-btn{flex:1;padding:10px;border-radius:10px;border:1px solid var(--glass-border);
@@ -1803,6 +1812,10 @@ function openWdPanel(){
     document.body.appendChild(_wdOverlay);
     _wdOverlay.querySelector('.wd-close').addEventListener('click',closeWdPanel);
     _wdOverlay.addEventListener('click',function(e){if(e.target===_wdOverlay)closeWdPanel();});
+    if(window.parent&&window.parent!==window){
+      window.parent.addEventListener('scroll',function(){if(_wdOverlay.classList.contains('open'))_wdPosOverlay();},{passive:true});
+      window.parent.addEventListener('resize',function(){if(_wdOverlay.classList.contains('open'))_wdPosOverlay();},{passive:true});
+    }
   }
   _wdPosOverlay();
   _wdOverlay.classList.add('open');
@@ -2045,7 +2058,7 @@ function _wdRenderDetail(idx){
     var growHit=Math.min(0.98,slot.hit+(slot.upgrades.hit*0.1));
     html+='<div style="margin-top:10px;padding:10px;border-radius:8px;border:1px solid var(--gold-line);background:var(--glass)">';
     html+='<div style="font-size:11px;color:var(--gold-l);margin-bottom:10px;letter-spacing:1px">成长</div>';
-    html+='<div style="display:grid;grid-template-columns:auto 60px 28px auto;gap:6px 8px;align-items:center;font-size:12px">';
+    html+='<div class="wd-grow-grid" style="display:grid;grid-template-columns:auto 60px 28px auto;gap:6px 8px;align-items:center;font-size:12px">';
     // 武功命中率
     html+='<span style="color:var(--text-dim)">武功命中率</span>';
     html+='<span id="wd-g-hit" style="color:var(--text-main)">'+Math.round(growHit*100)+'%</span>';
