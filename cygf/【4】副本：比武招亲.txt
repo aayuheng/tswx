@@ -1,7 +1,7 @@
 <%_ 
 var level = getvar('stat_data.玩家.基础信息.等级');
 var fuck = getvar('stat_data.$mod.比武招亲');
-if ( (level >= 10) && (level < 13)  && (fuck = 0)) { 
+if ( (level >= 10) && (level < 13)  && (fuck === 0)) { 
 print(`
 ## 剧情设计
 ### 此部分剧情顺序（必须按顺序严格执行）：
