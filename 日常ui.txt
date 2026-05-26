@@ -3056,13 +3056,41 @@ function renderParty() {
       }catch(e){ showToast('战斗启动失败'); }
     });
   }
-  toolbar.querySelector('.wx-money').addEventListener('click', () => {
+  toolbar.querySelector('.wx-money').addEventListener('click', async () => {
+    const _WX_BASE = 'https://raw.githubusercontent.com/bibilabu2026/tswx/main/';
+    const _WX_KEYS = { ctrl:'wx_ctrl_code', daily:'wx_daily_code', battle:'wx_battle_code', opening:'wx_opening_code' };
+    const _WX_NAMES = { ctrl:'控制脚本', daily:'日常ui', battle:'战斗ui', opening:'开场ui' };
+    const _WX_FILES = { ctrl:'控制脚本.txt', daily:'日常ui.txt', battle:'战斗ui.txt', opening:'开场ui.txt' };
+    let localVer = {}; try { localVer = JSON.parse(localStorage.getItem('wx_versions')||'{}'); } catch(_){}
+    let remoteVer = null;
+    try { remoteVer = await fetch(_WX_BASE+'version.json?t='+Date.now()).then(r=>r.json()); } catch(e){ showToast('版本信息获取失败'); }
+    let rows = '';
+    for (const k of ['ctrl','daily','battle','opening']) {
+      const local = localVer[_WX_NAMES[k]] || '未知';
+      const remote = remoteVer ? (remoteVer[_WX_NAMES[k]] || '?') : '获取失败';
+      const diff = (remoteVer && local !== remote) ? ' style="color:var(--vermilion-l)"' : '';
+      rows += `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gold-dim)"><span>${_WX_NAMES[k]}</span><span>本地: ${local}</span><span${diff}>最新: ${remote}</span></div>`;
+    }
     showModal({
-      title: '被你发现彩蛋了！',
-      text: '确认进行不删档更新吗？',
+      title: '版本管理',
+      text: rows,
       actions: [
-        { label: '确认', cls: 'confirm', cb: async () => {
+        { label: '一键更新', cls: 'confirm', cb: async () => {
           try {
+            showToast('正在更新脚本...');
+            const [newVer, ctrl, daily, battle, opening] = await Promise.all([
+              fetch(_WX_BASE+'version.json?t='+Date.now()).then(r=>r.json()),
+              fetch(_WX_BASE+_WX_FILES.ctrl+'?t='+Date.now()).then(r=>r.text()),
+              fetch(_WX_BASE+_WX_FILES.daily+'?t='+Date.now()).then(r=>r.text()),
+              fetch(_WX_BASE+_WX_FILES.battle+'?t='+Date.now()).then(r=>r.text()),
+              fetch(_WX_BASE+_WX_FILES.opening+'?t='+Date.now()).then(r=>r.text()),
+            ]);
+            localStorage.setItem(_WX_KEYS.ctrl, ctrl);
+            localStorage.setItem(_WX_KEYS.daily, daily);
+            localStorage.setItem(_WX_KEYS.battle, battle);
+            localStorage.setItem(_WX_KEYS.opening, opening);
+            localStorage.setItem('wx_versions', JSON.stringify(newVer));
+            showToast('脚本已更新，正在执行数据迁移...');
             const lib = window.parent.WX_GET_ALL_KUNGFU?.();
             if (!lib || !Object.keys(lib).length) { showToast('武学库读取失败'); return; }
             const allKungfuRecord = Object.fromEntries(Object.values(lib).map(k => [k.名字, k.类别 || '普通']));
@@ -3190,9 +3218,9 @@ function renderParty() {
               if(renames.length) showToast(`队友同步：${renames.join('，')}`);
             }
             await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-            showToast(`武学库已刷新（${Object.keys(allKungfuRecord).length}门）`);
-            await loadState(); renderParty();
-          } catch(e) { showToast('刷新失败：' + (e.message || e)); }
+            showToast('更新完成，即将刷新...');
+            setTimeout(() => callParent('WX_RELOAD_CHAT'), 1200);
+          } catch(e) { showToast('更新失败：' + (e.message || e)); }
         }},
         { label: '取消', cls: '' }
       ]
