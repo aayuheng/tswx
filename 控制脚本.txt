@@ -6535,7 +6535,7 @@ async function _wxFetchGithub() {
     if (!mods[num]) mods[num] = { id: num, configUrl: null, descUrl: null, entries: [], modName: '' };
     if (rest === '【配置】' && ext === 'txt') mods[num].configUrl = files[i].download_url;
     else if (rest === '【说明】' && ext === 'txt') mods[num].descUrl = files[i].download_url;
-    else mods[num].entries.push({ name: '【' + num + '】' + rest + '.' + ext, url: files[i].download_url });
+    else mods[num].entries.push({ name: '【' + num + '】' + rest + '.' + ext, url: files[i].download_url, sha: files[i].sha });
   }
   var keys = Object.keys(mods);
   for (var j = 0; j < keys.length; j++) {
@@ -6854,10 +6854,14 @@ async function _wxInstallMod(modId) {
         localStorage.setItem('wx_active_ai_mod', JSON.stringify({ modId: modId, name: parsedCfg.name }));
       }
 
-      // 6. 保存mod元信息
+      // 6. 保存mod元信息（含文件sha用于检测更新）
+      var fileShas = {};
+      for (var si = 0; si < mod.entries.length; si++) {
+        fileShas[mod.entries[si].name] = mod.entries[si].sha || '';
+      }
       localStorage.setItem('wx_mod_meta_' + modId, JSON.stringify({
         isNew: true, useExtraAI: parsedCfg.useExtraAI, name: parsedCfg.name,
-        indexPrefix: indexPrefix, prefix: prefix
+        indexPrefix: indexPrefix, prefix: prefix, fileShas: fileShas
       }));
 
       if (area) area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">安装成功</div>'
@@ -7036,6 +7040,31 @@ async function _wxCheckUpdate(modId) {
     var mods = await _wxFetchGithub();
     var mod = mods[modId];
     if (!mod) { area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-desc">GitHub上未找到此mod。</div></div>'; return; }
+
+    var parsedCfg = mod._parsedConfig;
+    if (parsedCfg && parsedCfg.isNew) {
+      // ═══ new 格式：用 sha 对比 ═══
+      var metaRaw = localStorage.getItem('wx_mod_meta_' + modId);
+      var meta = metaRaw ? JSON.parse(metaRaw) : {};
+      var localShas = meta.fileShas || {};
+      var diffs = [];
+      for (var j = 0; j < mod.entries.length; j++) {
+        var entry = mod.entries[j];
+        var localSha = localShas[entry.name];
+        if (!localSha) { diffs.push(entry.name + ': 本地缺失'); continue; }
+        if (entry.sha && localSha !== entry.sha) { diffs.push(entry.name + ': 内容不同'); continue; }
+      }
+      if (diffs.length === 0) {
+        area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">检测结果</div><div class="wx-ws-detail-desc">已是最新版，无需更新。</div></div>';
+      } else {
+        area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">发现差异</div>'
+          + '<div class="wx-ws-detail-desc">' + _wxEsc(diffs.join('\n')) + '</div>'
+          + '<div class="wx-ws-detail-actions"><button class="wx-ws-btn primary" onclick="_wxUpdateMod(\'' + modId + '\')">更新此Mod</button></div></div>';
+      }
+      return;
+    }
+
+    // ═══ 老格式：逐条对比世界书条目内容 ═══
     var api = _wxGetAPI();
     var books = api.getNames('current');
     var localEntries = await api.getBook(books.primary);
@@ -7044,7 +7073,6 @@ async function _wxCheckUpdate(modId) {
     for (var i = 0; i < localEntries.length; i++) {
       if (localEntries[i].name.indexOf(prefix) === 0) localMap[localEntries[i].name] = localEntries[i];
     }
-    var configs = mod._parsedConfigs || [];
     var diffs = [];
     for (var j = 0; j < mod.entries.length; j++) {
       var entry = mod.entries[j];
