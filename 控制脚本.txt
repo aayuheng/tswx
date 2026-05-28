@@ -6414,12 +6414,22 @@ function _wxBuildWorkshopOverlay() {
 
 function _wxOpenWorkshop() {
   _wxWsTab = 0; _wxSelectedMod = null; _wxModsCache = null;
-  _wxDoc().getElementById('wx-workshop-overlay').classList.add('show');
+  var ov = _wxDoc().getElementById('wx-workshop-overlay');
+  var isMobile = (window.innerWidth <= 768 || screen.width <= 768);
+  if (isMobile) {
+    var pwin; try { pwin = parent.window || window; } catch(e) { pwin = window; }
+    var st = pwin.pageYOffset || pwin.document.documentElement.scrollTop || 0;
+    var sl = pwin.pageXOffset || pwin.document.documentElement.scrollLeft || 0;
+    ov.style.cssText = 'position:absolute;top:'+st+'px;left:'+sl+'px;width:'+pwin.innerWidth+'px;height:'+pwin.innerHeight+'px;z-index:2147483647;background:rgba(0,0,0,0.78);display:flex;overflow:hidden;padding:0;';
+  }
+  ov.classList.add('show');
   _wxUpdateTabs();
   _wxLoadAvailable();
 }
 function _wxCloseWorkshop() {
-  _wxDoc().getElementById('wx-workshop-overlay').classList.remove('show');
+  var ov = _wxDoc().getElementById('wx-workshop-overlay');
+  ov.classList.remove('show');
+  ov.style.cssText = '';
 }
 function _wxSwitchTab(idx) {
   _wxWsTab = idx; _wxSelectedMod = null;
