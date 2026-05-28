@@ -6151,10 +6151,1331 @@ window.parent.WX_EXP_TO_NEXT = (lv) => {
   return lv*600;
 };
 // ══════════════════════════════════════════════════════
-//  初始化
+//  天书悬浮球 + 创意工坊
 // ══════════════════════════════════════════════════════
-$(() => {
-  console.log('[天书江湖录·控制脚本] 已启动 ✅');
-  console.log(`[武功库] 共 ${ALL_KUNGFU_NAMES.length} 个武功：${ALL_KUNGFU_NAMES.join('、')}`);
+function _initTianShuOrb() {
+let pdoc, pwin;
+try {
+  pdoc = (parent && parent.document) ? parent.document : document;
+  pwin = (parent && parent.window) ? parent.window : window;
+} catch(e) { pdoc = document; pwin = window; }
 
+const ID = 'wx-orb';
+
+// 防重复
+if (pdoc.getElementById(ID)) pdoc.getElementById(ID).remove();
+if (pdoc.getElementById(`${ID}-style`)) pdoc.getElementById(`${ID}-style`).remove();
+
+const isMobile = pwin.innerWidth <= 768;
+let pos = isMobile
+  ? { x: pwin.innerWidth - 64, y: pwin.innerHeight - 130 }
+  : { x: 36, y: 200 };
+try {
+  const saved = JSON.parse(localStorage.getItem('wx_orb_pos'));
+  if (saved) {
+    saved.x = Math.max(4, Math.min(saved.x, pwin.innerWidth - 56));
+    saved.y = Math.max(4, Math.min(saved.y, pwin.innerHeight - 56));
+    Object.assign(pos, saved);
+  }
+} catch(_) {}
+
+// ── 样式 ──
+const style = pdoc.createElement('style');
+style.id = `${ID}-style`;
+style.textContent = `
+#${ID}{position:fixed!important;z-index:2147483647!important;width:52px;height:52px;font-family:'Microsoft YaHei','PingFang SC',sans-serif;user-select:none;-webkit-user-select:none}
+#${ID} .orb{position:absolute;top:0;left:0;width:52px;height:52px;border-radius:50%;cursor:pointer;z-index:2;touch-action:none;background:radial-gradient(circle at 35% 32%,rgba(180,140,60,0.18) 0%,transparent 60%),radial-gradient(circle at 68% 72%,rgba(120,80,20,0.22) 0%,transparent 55%),linear-gradient(145deg,rgba(18,12,6,0.96) 0%,rgba(8,5,2,0.99) 100%);border:1.5px solid rgba(200,160,60,0.55);box-shadow:0 0 0 1px rgba(0,0,0,0.6),0 0 14px rgba(200,160,60,0.40),0 0 30px rgba(160,120,40,0.18),inset 0 1px 0 rgba(255,240,200,0.12),inset 0 -1px 0 rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;transition:box-shadow .3s,border-color .3s;-webkit-tap-highlight-color:transparent}
+#${ID} .orb:hover{border-color:rgba(240,200,80,0.75);box-shadow:0 0 0 1px rgba(0,0,0,0.6),0 0 22px rgba(240,200,80,0.65),0 0 50px rgba(180,140,40,0.30),inset 0 1px 0 rgba(255,240,200,0.16),inset 0 -1px 0 rgba(0,0,0,0.4)}
+#${ID} .orb-text{font-size:16px;font-weight:700;color:rgba(240,210,120,0.95);letter-spacing:2px;text-shadow:0 0 8px rgba(240,200,80,0.7),0 0 16px rgba(200,160,60,0.4);pointer-events:none}
+#${ID} .orb-ring{position:absolute;top:-5px;left:-5px;width:62px;height:62px;border-radius:50%;border:1px solid transparent;border-top-color:rgba(200,160,60,0.55);border-right-color:rgba(160,120,40,0.22);pointer-events:none;opacity:0;transition:opacity .3s}
+@keyframes wx-spin{to{transform:rotate(360deg)}}
+#${ID}.open .orb-ring{opacity:1;animation:wx-spin 4s linear infinite}
+@keyframes wx-pulse{0%,100%{box-shadow:0 0 0 1px rgba(0,0,0,0.6),0 0 14px rgba(200,160,60,0.40),0 0 30px rgba(160,120,40,0.18),inset 0 1px 0 rgba(255,240,200,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)}50%{box-shadow:0 0 0 1px rgba(0,0,0,0.6),0 0 24px rgba(240,200,80,0.55),0 0 45px rgba(180,140,40,0.25),inset 0 1px 0 rgba(255,240,200,0.12),inset 0 -1px 0 rgba(0,0,0,0.4)}}
+#${ID}:not(.open) .orb{animation:wx-pulse 3.5s ease-in-out infinite}
+#${ID} .menu{position:absolute;width:200px;max-width:calc(100vw - 16px);pointer-events:none;transform:scale(0.88) translateY(-8px);opacity:0;transition:transform .28s cubic-bezier(0.34,1.3,0.64,1),opacity .22s ease;touch-action:auto}
+#${ID}.open .menu{pointer-events:all;transform:scale(1) translateY(0);opacity:1}
+#${ID}.open-up .menu{bottom:60px;top:auto}
+#${ID}:not(.open-up) .menu{top:60px}
+#${ID} .menu-shell{background:linear-gradient(150deg,rgba(18,12,6,0.97) 0%,rgba(28,18,8,0.95) 100%);border:1px solid rgba(200,160,60,0.28);border-radius:12px;backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,240,200,0.06),0 0 0 1px rgba(0,0,0,0.5),0 8px 32px rgba(80,60,20,0.25),0 2px 8px rgba(0,0,0,0.5)}
+#${ID} .menu-head{display:flex;align-items:center;gap:7px;padding:9px 12px 8px;background:linear-gradient(90deg,rgba(180,140,40,0.18) 0%,rgba(120,80,20,0.08) 100%);border-bottom:1px solid rgba(200,160,60,0.16);border-radius:12px 12px 0 0;cursor:grab;touch-action:none;flex-shrink:0}
+#${ID} .menu-head:active{cursor:grabbing}
+#${ID} .menu-gem{width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fde68a,#b45309);box-shadow:0 0 8px rgba(240,200,80,0.7);flex-shrink:0}
+#${ID} .menu-title{font-size:13px;font-weight:700;letter-spacing:3px;color:rgba(240,210,120,0.92);text-shadow:0 0 10px rgba(240,200,80,0.4);flex:1}
+#${ID} .menu-close{width:28px;height:28px;border-radius:5px;border:1px solid rgba(200,160,60,0.20);background:rgba(255,255,255,0.03);color:rgba(240,210,120,0.7);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:all .18s;flex-shrink:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+#${ID} .menu-close:hover{background:rgba(200,50,50,0.22);color:#fca5a5;border-color:rgba(239,68,68,0.4)}
+#${ID} .menu-list{padding:6px;display:flex;flex-direction:column;gap:3px}
+#${ID} .menu-item{display:flex;align-items:center;gap:9px;padding:12px;border-radius:10px;border:1px solid rgba(200,160,60,0.22);cursor:pointer;transition:all .16s;background:rgba(18,12,6,0.6);margin:2px 4px;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+#${ID} .menu-item:hover{background:rgba(180,140,40,0.15);border-color:rgba(240,200,80,0.45)}
+#${ID} .menu-item:active{transform:scale(0.97)}
+#${ID} .menu-item-text{font-size:14px;color:rgba(255,245,220,0.9);letter-spacing:1px}
+#${ID} .menu-item-desc{font-size:11px;color:rgba(200,180,140,0.6);margin-top:2px}
+#${ID} .menu-foot{padding:5px 12px;font-size:10px;letter-spacing:2px;color:rgba(200,160,60,0.25);text-align:right;border-top:1px solid rgba(200,160,60,0.08)}
+@keyframes wx-orb-in{from{opacity:0;transform:scale(0.75)}to{opacity:1;transform:scale(1)}}
+#${ID}{animation:wx-orb-in .3s cubic-bezier(0.34,1.3,0.64,1) both}
+
+/* 创意工坊全屏浮层 */
+#wx-workshop-overlay{display:none;position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.78);backdrop-filter:blur(6px);justify-content:center;align-items:center;animation:wx-ws-fadeIn .25s ease}
+#wx-workshop-overlay.show{display:flex}
+@keyframes wx-ws-fadeIn{from{opacity:0}to{opacity:1}}
+.wx-ws-panel{background:linear-gradient(160deg,rgba(14,10,4,0.98) 0%,rgba(22,16,8,0.97) 100%);border:1px solid rgba(200,160,60,0.3);border-radius:14px;width:92vw;max-width:760px;max-height:82vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 60px rgba(0,0,0,0.7),0 0 1px rgba(200,160,60,0.4);animation:wx-ws-slideUp .3s cubic-bezier(0.34,1.3,0.64,1)}
+@keyframes wx-ws-slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.wx-ws-header{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:1px solid rgba(200,160,60,0.2);background:rgba(180,140,40,0.04)}
+.wx-ws-header h3{font-size:18px;font-weight:700;color:rgba(240,210,120,0.92);letter-spacing:4px;text-shadow:0 0 12px rgba(240,200,80,0.2)}
+.wx-ws-close{background:none;border:none;color:rgba(200,180,140,0.7);font-size:22px;cursor:pointer;padding:4px 8px;transition:color .2s}
+.wx-ws-close:hover{color:#fca5a5}
+.wx-ws-tabs{display:flex;border-bottom:1px solid rgba(200,160,60,0.15);padding:0 16px}
+.wx-ws-tab{padding:10px 20px;font-size:14px;color:rgba(200,180,140,0.6);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;letter-spacing:1px}
+.wx-ws-tab.active{color:rgba(240,210,120,0.95);border-bottom-color:rgba(240,200,80,0.7);text-shadow:0 0 8px rgba(240,200,80,0.3)}
+.wx-ws-tab:hover{color:rgba(240,210,120,0.8)}
+.wx-ws-body{flex:1;overflow-y:auto;padding:16px 20px;scrollbar-width:thin;scrollbar-color:rgba(200,160,60,0.3) transparent}
+.wx-ws-body::-webkit-scrollbar{width:5px}
+.wx-ws-body::-webkit-scrollbar-thumb{background:rgba(200,160,60,0.3);border-radius:4px}
+.wx-ws-loading{text-align:center;padding:40px;color:rgba(200,180,140,0.6);font-size:14px}
+.wx-ws-empty{text-align:center;padding:40px;color:rgba(200,180,140,0.5);font-size:14px}
+.wx-ws-mod-list{display:flex;flex-direction:column;gap:6px}
+.wx-ws-mod-item{padding:12px 14px;border:1px solid rgba(200,160,60,0.18);border-radius:10px;cursor:pointer;transition:all .16s;background:rgba(18,12,6,0.5)}
+.wx-ws-mod-item:hover,.wx-ws-mod-item.selected{background:rgba(180,140,40,0.12);border-color:rgba(240,200,80,0.4)}
+.wx-ws-mod-item.installed{border-left:3px solid rgba(100,200,100,0.5)}
+.wx-ws-mod-name{font-size:14px;color:rgba(255,245,220,0.88);font-weight:600;margin-bottom:3px}
+.wx-ws-mod-files{font-size:11px;color:rgba(200,180,140,0.5);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wx-ws-mod-badge{font-size:10px;padding:2px 6px;border-radius:4px;background:rgba(100,200,100,0.15);color:rgba(100,200,100,0.8);margin-left:8px}
+.wx-ws-detail{margin-top:16px;padding:14px;border:1px solid rgba(200,160,60,0.18);border-radius:10px;background:rgba(18,12,6,0.4)}
+.wx-ws-detail-title{font-size:15px;font-weight:600;color:rgba(240,210,120,0.9);margin-bottom:8px}
+.wx-ws-detail-desc{font-size:13px;color:rgba(200,180,140,0.7);line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.wx-ws-detail-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.wx-ws-btn{padding:8px 16px;border-radius:8px;font-size:13px;cursor:pointer;transition:all .16s;border:1px solid rgba(200,160,60,0.3);background:rgba(180,140,40,0.12);color:rgba(240,210,120,0.85);letter-spacing:1px}
+.wx-ws-btn:hover{background:rgba(180,140,40,0.22);border-color:rgba(240,200,80,0.5)}
+.wx-ws-btn.primary{background:rgba(180,140,40,0.2);border-color:rgba(240,200,80,0.5);color:rgba(240,210,120,0.95)}
+.wx-ws-btn.danger{border-color:rgba(239,68,68,0.4);color:rgba(252,165,165,0.85);background:rgba(200,50,50,0.12)}
+.wx-ws-btn.danger:hover{background:rgba(200,50,50,0.22)}
+.wx-ws-btn:disabled{opacity:0.4;cursor:default;pointer-events:none}
+/* API配置 */
+.wx-api-form{display:flex;flex-direction:column;gap:14px;max-width:480px}
+.wx-api-field{display:flex;flex-direction:column;gap:4px}
+.wx-api-field label{font-size:12px;color:rgba(200,180,140,0.7);letter-spacing:1px}
+.wx-api-field input{padding:10px 12px;border-radius:8px;border:1px solid rgba(200,160,60,0.25);background:rgba(10,8,4,0.7);color:rgba(255,245,220,0.9);font-size:14px;outline:none;transition:border-color .2s}
+.wx-api-field input:focus{border-color:rgba(240,200,80,0.5)}
+.wx-api-field input::placeholder{color:rgba(200,180,140,0.35)}
+.wx-api-status{font-size:12px;padding:8px 12px;border-radius:6px;background:rgba(100,200,100,0.08);color:rgba(100,200,100,0.7);margin-top:4px;display:none}
+.wx-api-status.show{display:block}
+`;
+pdoc.head.appendChild(style);
+
+// ── DOM ──
+const root = pdoc.createElement('div');
+root.id = ID;
+root.style.left = pos.x + 'px';
+root.style.top = pos.y + 'px';
+root.innerHTML = `
+  <div class="orb-ring"></div>
+  <div class="orb" id="${ID}-orb"><span class="orb-text">天书</span></div>
+  <div class="menu" id="${ID}-menu">
+    <div class="menu-shell">
+      <div class="menu-head" id="${ID}-head">
+        <div class="menu-gem"></div>
+        <div class="menu-title">天书江湖录</div>
+        <button class="menu-close" id="${ID}-close">✕</button>
+      </div>
+      <div class="menu-list">
+        <div class="menu-item" id="${ID}-btn-workshop">
+          <div>
+            <div class="menu-item-text">Mod管理</div>
+            <div class="menu-item-desc">创意工坊 · 安装与配置</div>
+          </div>
+        </div>
+        <div class="menu-item" id="${ID}-btn-hide" style="border-color:rgba(200,160,60,0.12);background:rgba(18,12,6,0.3)">
+          <div>
+            <div class="menu-item-text" style="font-size:12px;color:rgba(200,180,140,0.6)">隐藏悬浮球</div>
+          </div>
+        </div>
+      </div>
+      <div class="menu-foot">天书江湖录 · 控制面板</div>
+    </div>
+  </div>
+`;
+(pdoc.documentElement || pdoc.body).appendChild(root);
+
+// ── 元素引用 ──
+const orb = pdoc.getElementById(`${ID}-orb`);
+const head = pdoc.getElementById(`${ID}-head`);
+const btnClose = pdoc.getElementById(`${ID}-close`);
+const btnWorkshop = pdoc.getElementById(`${ID}-btn-workshop`);
+const btnHide = pdoc.getElementById(`${ID}-btn-hide`);
+let isOpen = false;
+
+// ── 菜单方向 ──
+function updateMenuDir() {
+  const ry = parseInt(root.style.top) || 0;
+  root.classList.toggle('open-up', ry > pwin.innerHeight * 0.6);
+}
+
+// ── 开关 ──
+function toggle() {
+  isOpen = !isOpen;
+  if (isOpen) updateMenuDir();
+  root.classList.toggle('open', isOpen);
+}
+function closeMenu() { if (isOpen) toggle(); }
+btnClose.addEventListener('click', e => { e.stopPropagation(); closeMenu(); });
+
+// ── 保存位置 ──
+function savePos() {
+  try { localStorage.setItem('wx_orb_pos', JSON.stringify({ x: parseInt(root.style.left), y: parseInt(root.style.top) })); } catch(_) {}
+}
+
+// ── 拖拽 ──
+let drag = false, moved = false, dragSX = 0, dragSY = 0, rootSX = 0, rootSY = 0;
+const DRAG_TH = 4;
+function onDown(e) {
+  drag = true; moved = false;
+  dragSX = e.clientX; dragSY = e.clientY;
+  rootSX = parseInt(root.style.left) || 0;
+  rootSY = parseInt(root.style.top) || 0;
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch(_) {}
+}
+function onMove(e) {
+  if (!drag) return;
+  const dx = e.clientX - dragSX, dy = e.clientY - dragSY;
+  if (!moved && Math.abs(dx) < DRAG_TH && Math.abs(dy) < DRAG_TH) return;
+  moved = true; e.preventDefault();
+  root.style.left = Math.max(4, Math.min(rootSX + dx, pwin.innerWidth - 56)) + 'px';
+  root.style.top = Math.max(4, Math.min(rootSY + dy, pwin.innerHeight - 56)) + 'px';
+}
+function onOrbUp(e) {
+  if (!drag) return; drag = false;
+  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_) {}
+  if (moved) savePos(); else toggle();
+}
+function onHeadUp(e) {
+  if (!drag) return; drag = false;
+  try { e.currentTarget.releasePointerCapture(e.pointerId); } catch(_) {}
+  if (moved) savePos();
+}
+orb.addEventListener('pointerdown', onDown);
+orb.addEventListener('pointermove', onMove, { passive: false });
+orb.addEventListener('pointerup', onOrbUp);
+orb.addEventListener('pointercancel', e => { drag = false; });
+head.addEventListener('pointerdown', e => { if (e.target.id === `${ID}-close`) return; e.stopPropagation(); onDown(e); });
+head.addEventListener('pointermove', onMove, { passive: false });
+head.addEventListener('pointerup', onHeadUp);
+head.addEventListener('pointercancel', e => { drag = false; });
+
+// ── 点击Mod管理 → 打开创意工坊 ──
+btnWorkshop.addEventListener('click', () => { closeMenu(); _wxOpenWorkshop(); });
+btnHide.addEventListener('click', () => {
+  closeMenu();
+  root.style.display = 'none';
+  try { toastr.info('重新进入天书江湖录，悬浮球便会出来', '悬浮球已隐藏'); } catch(_) {}
+});
+
+// ── 自动清理（退出角色卡/页面卸载时销毁悬浮球和浮层）──
+function _wxCleanup() {
+  try { pdoc.getElementById(ID)?.remove(); } catch(_) {}
+  try { pdoc.getElementById(`${ID}-style`)?.remove(); } catch(_) {}
+  try { pdoc.getElementById('wx-workshop-overlay')?.remove(); } catch(_) {}
+}
+window.addEventListener('pagehide', _wxCleanup);
+window.addEventListener('unload', _wxCleanup);
+
+// ══════════════════════════════════════════════════════
+//  创意工坊浮层
+// ══════════════════════════════════════════════════════
+_wxBuildWorkshopOverlay();
+} // end _initTianShuOrb
+
+// ── 创意工坊全局状态 ──
+var _wxWsTab = 0;
+var _wxModsCache = null;
+var _wxSelectedMod = null;
+
+function _wxBuildWorkshopOverlay() {
+  var pdoc;
+  try { pdoc = (parent && parent.document) ? parent.document : document; } catch(e) { pdoc = document; }
+  // 防重复
+  if (pdoc.getElementById('wx-workshop-overlay')) pdoc.getElementById('wx-workshop-overlay').remove();
+  var ov = pdoc.createElement('div');
+  ov.id = 'wx-workshop-overlay';
+  ov.innerHTML = `
+  <div class="wx-ws-panel">
+    <div class="wx-ws-header">
+      <h3>创意工坊</h3>
+      <button class="wx-ws-close" onclick="_wxCloseWorkshop()">✕</button>
+    </div>
+    <div class="wx-ws-tabs">
+      <div class="wx-ws-tab active" onclick="_wxSwitchTab(0)">可用Mod</div>
+      <div class="wx-ws-tab" onclick="_wxSwitchTab(1)">已安装</div>
+      <div class="wx-ws-tab" onclick="_wxSwitchTab(2)">API配置</div>
+    </div>
+    <div class="wx-ws-body" id="wx-ws-body"></div>
+  </div>`;
+  (pdoc.documentElement || pdoc.body).appendChild(ov);
+}
+
+function _wxOpenWorkshop() {
+  _wxWsTab = 0; _wxSelectedMod = null; _wxModsCache = null;
+  _wxDoc().getElementById('wx-workshop-overlay').classList.add('show');
+  _wxUpdateTabs();
+  _wxLoadAvailable();
+}
+function _wxCloseWorkshop() {
+  _wxDoc().getElementById('wx-workshop-overlay').classList.remove('show');
+}
+function _wxSwitchTab(idx) {
+  _wxWsTab = idx; _wxSelectedMod = null;
+  _wxUpdateTabs();
+  if (idx === 0) _wxLoadAvailable();
+  else if (idx === 1) _wxLoadInstalled();
+  else if (idx === 2) _wxLoadApiConfig();
+}
+function _wxUpdateTabs() {
+  var tabs = _wxDoc().querySelectorAll('.wx-ws-tab');
+  tabs.forEach(function(t, i) { t.classList.toggle('active', i === _wxWsTab); });
+}
+
+function _wxEsc(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+function _wxEscPlain(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+var _wxCodeStore = {};
+
+function _wxRenderDesc(raw) {
+  var text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  var parts = text.split('```');
+  var html = '';
+  _wxCodeStore = {};
+  for (var i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      var lines = parts[i].replace(/^\n+/, '').replace(/\n+$/, '');
+      if (lines) html += '<div style="white-space:pre-wrap;word-break:break-word;">' + _wxEscPlain(lines) + '</div>';
+    } else {
+      var code = parts[i].replace(/^\w*\n/, '').replace(/\n$/, '');
+      if (!code.trim()) continue;
+      var codeId = 'wx-code-' + Math.random().toString(36).slice(2,8);
+      _wxCodeStore[codeId] = code;
+      html += '<div style="margin:8px 0;padding:10px 12px;border-radius:8px;background:rgba(0,0,0,0.4);border:1px solid rgba(200,160,60,0.15);position:relative;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;color:rgba(220,200,160,0.85);" id="' + codeId + '">'
+        + '<button style="position:absolute;top:6px;right:6px;padding:3px 8px;font-size:10px;border-radius:4px;border:1px solid rgba(200,160,60,0.3);background:rgba(180,140,40,0.15);color:rgba(240,210,120,0.8);cursor:pointer;" onclick="_wxCopyCode(\'' + codeId + '\')">复制</button>'
+        + '<span class="wx-code-text"></span>'
+        + '</div>';
+    }
+  }
+  if (!html) html = '<div style="white-space:pre-wrap;">' + _wxEscPlain(text) + '</div>';
+  setTimeout(_wxApplyCode, 0);
+  return html;
+}
+
+function _wxApplyCode() {
+  var pdoc = _wxDoc();
+  var keys = Object.keys(_wxCodeStore);
+  for (var i = 0; i < keys.length; i++) {
+    var el = pdoc.getElementById(keys[i]);
+    if (el) {
+      var span = el.querySelector('.wx-code-text');
+      if (span) span.textContent = _wxCodeStore[keys[i]];
+    }
+  }
+}
+
+function _wxCopyCode(id) {
+  var pdoc = _wxDoc();
+  var text = _wxCodeStore[id];
+  if (!text) {
+    var el = pdoc.getElementById(id);
+    if (el) {
+      var clone = el.cloneNode(true);
+      var btn = clone.querySelector('button');
+      if (btn) btn.remove();
+      text = clone.innerText || clone.textContent;
+    }
+  }
+  if (!text) return;
+  var btn = pdoc.querySelector('#' + id + ' button');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (btn) { btn.textContent = '已复制'; setTimeout(function(){ btn.textContent = '复制'; }, 1500); }
+    });
+  } else {
+    var ta = pdoc.createElement('textarea');
+    ta.value = text;
+    pdoc.body.appendChild(ta);
+    ta.select();
+    pdoc.execCommand('copy');
+    pdoc.body.removeChild(ta);
+    if (btn) { btn.textContent = '已复制'; setTimeout(function(){ btn.textContent = '复制'; }, 1500); }
+  }
+}
+
+function _wxDoc() {
+  try { return (parent && parent.document) ? parent.document : document; } catch(e) { return document; }
+}
+
+function _wxGetAPI() {
+  var getNames = window.getCharWorldbookNames;
+  var getBook = window.getWorldbook;
+  var replaceBook = window.replaceWorldbook;
+  var createEntries = window.createWorldbookEntries;
+  if (getNames && getBook) return { getNames, getBook, replaceBook, createEntries };
+  return null;
+}
+
+async function _wxFetchGithub() {
+  if (_wxModsCache) return _wxModsCache;
+  var noCache = { cache: 'no-store' };
+  var resp = await fetch('https://api.github.com/repos/bibilabu2026/tswx/contents/cygf', noCache);
+  if (!resp.ok) throw new Error('GitHub API: ' + resp.status);
+  var files = await resp.json();
+  var mods = {};
+  for (var i = 0; i < files.length; i++) {
+    var fname = files[i].name;
+    var m = fname.match(/^【(\d+)】(.+)\.(txt|json)$/);
+    if (!m) continue;
+    var num = m[1], rest = m[2], ext = m[3];
+    if (!mods[num]) mods[num] = { id: num, configUrl: null, descUrl: null, entries: [], modName: '' };
+    if (rest === '【配置】' && ext === 'txt') mods[num].configUrl = files[i].download_url;
+    else if (rest === '【说明】' && ext === 'txt') mods[num].descUrl = files[i].download_url;
+    else mods[num].entries.push({ name: '【' + num + '】' + rest + '.' + ext, url: files[i].download_url });
+  }
+  var keys = Object.keys(mods);
+  for (var j = 0; j < keys.length; j++) {
+    var mod = mods[keys[j]];
+    if (mod.configUrl) {
+      try {
+        var cr = await fetch(mod.configUrl, noCache);
+        if (cr.ok) {
+          var parsed = _wxParseConfig(await cr.text());
+          if (parsed.isNew) {
+            mod.modName = parsed.name || '';
+            mod._parsedConfig = parsed;
+          } else {
+            mod.modName = parsed.name || '';
+            mod._parsedConfigs = parsed.configs;
+            mod._parsedDisableEntries = parsed.disableEntries || [];
+            mod._parsedMvuInserts = parsed.mvuInserts || [];
+          }
+        }
+      } catch(e) {}
+    }
+  }
+  _wxModsCache = mods;
+  return mods;
+}
+
+function _wxParseConfig(text) {
+  var lines = text.replace(/\r\n/g, '\n').split('\n');
+  var firstLine = lines[0] ? lines[0].trim() : '';
+
+  // new 格式
+  if (firstLine === 'new') {
+    var result = { isNew: true, name: '', worldbookFiles: [], useExtraAI: false, presetFile: '', indexWorldbookFile: '', disableEntries: [] };
+    for (var i = 1; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      if (line.indexOf('名字：') === 0 || line.indexOf('名字:') === 0) {
+        result.name = line.split(/[：:]/)[1].trim();
+      } else if (line.indexOf('世界书：') === 0 || line.indexOf('世界书:') === 0) {
+        result.worldbookFiles = line.split(/[：:]/)[1].trim().split(/[,，]/).map(function(s){return s.trim();}).filter(Boolean);
+      } else if (line.indexOf('额外ai：') === 0 || line.indexOf('额外ai:') === 0) {
+        result.useExtraAI = (line.split(/[：:]/)[1].trim() === '是');
+      } else if (line.indexOf('预设：') === 0 || line.indexOf('预设:') === 0) {
+        result.presetFile = line.split(/[：:]/)[1].trim();
+      } else if (line.indexOf('提示词世界书：') === 0 || line.indexOf('提示词世界书:') === 0) {
+        result.indexWorldbookFile = line.split(/[：:]/)[1].trim();
+      } else if (line.indexOf('关闭世界书：') === 0 || line.indexOf('关闭世界书:') === 0) {
+        var n = line.split(/[：:]/)[1].trim();
+        if (n) result.disableEntries.push(n);
+      }
+    }
+    return result;
+  }
+
+  // 老格式
+  var configs = [], current = null, modName = '', disableEntries = [], mvuInserts = [];
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    if (line.indexOf('名字：') === 0 || line.indexOf('名字:') === 0) { modName = line.split(/[：:]/)[1].trim(); continue; }
+    if (line.indexOf('关闭世界书：') === 0 || line.indexOf('关闭世界书:') === 0) { var n = line.split(/[：:]/)[1].trim(); if (n) disableEntries.push(n); continue; }
+    if (line.indexOf('mvu插入：') === 0 || line.indexOf('mvu插入:') === 0) { var k = line.split(/[：:]/)[1].trim(); if (k) mvuInserts.push(k); continue; }
+    if (line.indexOf('触发策略') === 0) {
+      if (!current) current = { entryName:'', strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
+      var val = (line.split('：')[1]||'').trim();
+      current.strategy = (val === '绿灯') ? 'selective' : 'constant';
+    } else if (line.indexOf('关键词') === 0) {
+      if (!current) current = { entryName:'', strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
+      var kw = (line.split('：')[1]||'').trim();
+      current.keys = kw ? kw.split(/[,，]/).map(function(k){return k.trim();}).filter(Boolean) : [];
+    } else if (line.indexOf('插入位置') === 0) {
+      if (!current) current = { entryName:'', strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
+      var p = (line.split('：')[1]||'').trim();
+      if (p === '角色定义前') current.posType = 'before_character_definition';
+      else if (p === '角色定义后') current.posType = 'after_character_definition';
+      else current.posType = 'at_depth';
+    } else if (line.indexOf('插入深度') === 0) {
+      if (!current) current = { entryName:'', strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
+      current.depth = parseInt((line.split('：')[1]||'').trim()) || 4;
+    } else if (line.indexOf('顺序') === 0) {
+      if (!current) current = { entryName:'', strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
+      current.order = parseInt((line.split('：')[1]||'').trim()) || 100;
+    } else {
+      if (current) configs.push(current);
+      current = { entryName: line, strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
+    }
+  }
+  if (current) configs.push(current);
+  return { isNew: false, name: modName, configs, disableEntries, mvuInserts };
+}
+
+function _wxMatchConfig(configs, entryName) {
+  if (!configs || configs.length === 0) return { strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
+  for (var i = 0; i < configs.length; i++) {
+    if (configs[i].entryName && entryName.indexOf(configs[i].entryName) !== -1) return configs[i];
+  }
+  if (!configs[0].entryName) return configs[0];
+  return configs[0];
+}
+
+async function _wxGetInstalledMods() {
+  var api = _wxGetAPI();
+  if (!api) return {};
+  var books = api.getNames('current');
+  if (!books || !books.primary) return {};
+  var entries = await api.getBook(books.primary);
+  var mods = {};
+  for (var i = 0; i < entries.length; i++) {
+    var m = entries[i].name.match(/^【(\d+)】/);
+    if (m) { var num = m[1]; if (!mods[num]) mods[num] = []; mods[num].push(entries[i]); }
+  }
+  return mods;
+}
+
+async function _wxLoadAvailable() {
+  var body = _wxDoc().getElementById('wx-ws-body');
+  body.innerHTML = '<div class="wx-ws-loading">正在获取mod列表...</div>';
+  try {
+    var mods = await _wxFetchGithub();
+    var installed = await _wxGetInstalledMods();
+    var keys = Object.keys(mods).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+    if (keys.length === 0) { body.innerHTML = '<div class="wx-ws-empty">暂无可用mod</div>'; return; }
+    var html = '<div style="margin-bottom:12px;text-align:right;"><button class="wx-ws-btn" onclick="_wxRefreshMods()">刷新列表</button></div>';
+    html += '<div class="wx-ws-mod-list">';
+    for (var i = 0; i < keys.length; i++) {
+      var mod = mods[keys[i]];
+      var isInst = !!installed[mod.id];
+      var cls = 'wx-ws-mod-item' + (isInst ? ' installed' : '');
+      var badge = isInst ? '<span class="wx-ws-mod-badge">已安装</span>' : '';
+      var displayName = mod.modName || '无名mod';
+      html += '<div class="' + cls + '" onclick="_wxSelectAvailable(\'' + mod.id + '\')" data-modid="' + mod.id + '">';
+      html += '<div class="wx-ws-mod-name">' + mod.id + '、' + _wxEsc(displayName) + badge + '</div>';
+      html += '<div class="wx-ws-mod-files">' + _wxEsc(mod.entries.map(function(e){return e.name;}).join(', ')) + '</div>';
+      html += '</div>';
+      html += '<div class="wx-ws-detail-slot" id="wx-ws-detail-' + mod.id + '" style="display:none"></div>';
+    }
+    html += '</div>';
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = '<div class="wx-ws-empty">加载失败: ' + _wxEsc(e.message) + '</div>';
+  }
+}
+
+async function _wxSelectAvailable(modId) {
+  // 收起之前展开的
+  var allSlots = _wxDoc().querySelectorAll('.wx-ws-detail-slot');
+  allSlots.forEach(function(s) { if (s.id !== 'wx-ws-detail-' + modId) { s.style.display = 'none'; s.innerHTML = ''; } });
+  var area = _wxDoc().getElementById('wx-ws-detail-' + modId);
+  if (!area) return;
+  // 点击同一个则收起
+  if (_wxSelectedMod === modId && area.style.display !== 'none') {
+    area.style.display = 'none'; area.innerHTML = ''; _wxSelectedMod = null; return;
+  }
+  _wxSelectedMod = modId;
+  area.style.display = 'block';
+  area.innerHTML = '<div class="wx-ws-loading">加载说明...</div>';
+  var mod = _wxModsCache[modId];
+  var desc = '直接添加即可，作者没有写说明。';
+  if (mod.descUrl) {
+    try { var r = await fetch(mod.descUrl, {cache:'no-store'}); if (r.ok) desc = await r.text(); } catch(e) {}
+  }
+  var installed = await _wxGetInstalledMods();
+  var isInst = !!installed[modId];
+  var btnHtml = isInst
+    ? '<button class="wx-ws-btn" disabled>已安装</button>'
+    : '<button class="wx-ws-btn primary" onclick="_wxInstallMod(\'' + modId + '\')">添加此Mod</button>';
+  area.innerHTML = '<div class="wx-ws-detail">'
+    + '<div class="wx-ws-detail-title">' + _wxEsc(mod.modName || '无名mod') + '</div>'
+    + '<div class="wx-ws-detail-desc">' + _wxRenderDesc(desc) + '</div>'
+    + '<div class="wx-ws-detail-actions">' + btnHtml + '</div></div>';
+}
+
+function _wxMapPosition(posNum) {
+  switch(posNum) {
+    case 0: return 'before_character_definition';
+    case 1: return 'after_character_definition';
+    case 2: return 'before_example_messages';
+    case 3: return 'after_example_messages';
+    case 4: return 'at_depth';
+    default: return 'before_character_definition';
+  }
+}
+
+function _wxBuildEntryForAPI(entry, namePrefix, forceDisabled) {
+  var posType = _wxMapPosition(entry.position || 0);
+  var posObj = { type: posType, order: entry.order || 100 };
+  if (posType === 'at_depth') {
+    posObj.depth = entry.depth || 4;
+    posObj.role = entry.role || 'system';
+  }
+  var stratType = entry.constant ? 'constant' : (entry.selective ? 'selective' : 'constant');
+  var keys = entry.key || [];
+  var keysecondary = entry.keysecondary || [];
+  return {
+    name: namePrefix + (entry.comment || entry.name || ''),
+    content: entry.content || '',
+    enabled: forceDisabled ? false : !entry.disable,
+    strategy: { type: stratType, keys: keys, keysecondary: keysecondary, selectiveLogic: entry.selectiveLogic || 0 },
+    position: posObj,
+    probability: entry.probability || 100,
+    recursion: {
+      prevent_incoming: !!entry.preventRecursion,
+      prevent_outgoing: !!entry.excludeRecursion,
+      delay_until: entry.delayUntilRecursion || null
+    },
+    effect: {
+      sticky: entry.sticky || null,
+      cooldown: entry.cooldown || null,
+      delay: entry.delay || null
+    }
+  };
+}
+
+async function _wxInstallJsonWorldbook(api, bookName, jsonData, namePrefix, forceDisabled, progressCb) {
+  var entries = Object.values(jsonData.entries || {});
+  var total = entries.length;
+  var batchSize = 10;
+  for (var i = 0; i < total; i += batchSize) {
+    var batch = entries.slice(i, i + batchSize);
+    var mapped = batch.map(function(e) { return _wxBuildEntryForAPI(e, namePrefix, forceDisabled); });
+    await api.createEntries(bookName, mapped);
+    if (progressCb) progressCb(Math.min(i + batchSize, total), total);
+    await new Promise(function(r){ setTimeout(r, 0); });
+  }
+  return total;
+}
+
+async function _wxInstallMod(modId) {
+  var area = _wxDoc().getElementById('wx-ws-detail-' + modId) || _wxDoc().getElementById('wx-ws-idetail-' + modId);
+  if (area) area.innerHTML = '<div class="wx-ws-loading">正在安装...</div>';
+  try {
+    var mod = _wxModsCache[modId];
+    if (!mod) throw new Error('mod不存在');
+    var api = _wxGetAPI();
+    if (!api || !api.createEntries) throw new Error('世界书API不可用');
+    var books = api.getNames('current');
+    if (!books || !books.primary) throw new Error('未找到角色世界书');
+    var parsedCfg = mod._parsedConfig;
+
+    // ═══ new 格式安装 ═══
+    if (parsedCfg && parsedCfg.isNew) {
+      var prefix = '【' + modId + '】';
+      var indexPrefix = '【' + modId + '-索引】';
+      var totalEntries = 0;
+
+      // 1. 安装世界书JSON
+      for (var wi = 0; wi < (parsedCfg.worldbookFiles || []).length; wi++) {
+        var wbFile = parsedCfg.worldbookFiles[wi];
+        var wbEntry = mod.entries.find(function(e){ return e.name === wbFile; });
+        if (!wbEntry) { console.warn('[创意工坊] 世界书文件未找到:', wbFile); continue; }
+        if (area) area.innerHTML = '<div class="wx-ws-loading">'
+          + '<div style="margin-bottom:8px;">正在下载: ' + _wxEscPlain(wbFile) + '</div>'
+          + '<div style="font-size:11px;color:rgba(200,180,140,0.5);">文件较大，请耐心等待...</div></div>';
+        var wbResp = await fetch(wbEntry.url, { cache: 'no-store' });
+        if (!wbResp.ok) throw new Error('下载失败: ' + wbFile);
+        var wbJson = JSON.parse(await wbResp.text());
+        var wbTotal = Object.keys(wbJson.entries || {}).length;
+        if (area) {
+          area.innerHTML = '<div class="wx-ws-loading">'
+            + '<div style="margin-bottom:8px;">正在写入: ' + _wxEscPlain(wbFile) + ' (' + wbTotal + '条)</div>'
+            + '<div style="width:100%;height:6px;border-radius:3px;background:rgba(200,160,60,0.15);overflow:hidden;">'
+            + '<div style="width:0%;height:100%;border-radius:3px;background:linear-gradient(90deg,rgba(200,160,60,0.6),rgba(240,200,80,0.8));"></div>'
+            + '</div>'
+            + '<div style="margin-top:4px;font-size:11px;color:rgba(200,180,140,0.6);">0 / ' + wbTotal + ' 条</div></div>';
+          await new Promise(function(r){ setTimeout(r, 0); });
+        }
+        var _wbFile = wbFile;
+        var count = await _wxInstallJsonWorldbook(api, books.primary, wbJson, prefix, false, function(done, total) {
+          if (area) area.innerHTML = '<div class="wx-ws-loading">'
+            + '<div style="margin-bottom:8px;">正在写入: ' + _wxEscPlain(_wbFile) + '</div>'
+            + '<div style="width:100%;height:6px;border-radius:3px;background:rgba(200,160,60,0.15);overflow:hidden;">'
+            + '<div style="width:' + Math.round(done/total*100) + '%;height:100%;border-radius:3px;background:linear-gradient(90deg,rgba(200,160,60,0.6),rgba(240,200,80,0.8));transition:width 0.2s;"></div>'
+            + '</div>'
+            + '<div style="margin-top:4px;font-size:11px;color:rgba(200,180,140,0.6);">' + done + ' / ' + total + ' 条</div>'
+            + '</div>';
+        });
+        totalEntries += count;
+      }
+
+      // 2. 安装提示词世界书（disabled）
+      if (parsedCfg.indexWorldbookFile) {
+        var idxEntry = mod.entries.find(function(e){ return e.name === parsedCfg.indexWorldbookFile; });
+        if (idxEntry) {
+          if (area) area.innerHTML = '<div class="wx-ws-loading">正在安装元素索引...</div>';
+          var idxResp = await fetch(idxEntry.url, { cache: 'no-store' });
+          if (!idxResp.ok) throw new Error('下载索引失败');
+          var idxJson = JSON.parse(await idxResp.text());
+          await _wxInstallJsonWorldbook(api, books.primary, idxJson, indexPrefix, true, null);
+        }
+      }
+
+      // 3. 保存预设到localStorage
+      if (parsedCfg.presetFile) {
+        var presetEntry = mod.entries.find(function(e){ return e.name === parsedCfg.presetFile; });
+        if (presetEntry) {
+          if (area) area.innerHTML = '<div class="wx-ws-loading">正在缓存预设...</div>';
+          var presetResp = await fetch(presetEntry.url, { cache: 'no-store' });
+          if (!presetResp.ok) throw new Error('下载预设失败');
+          var presetText = await presetResp.text();
+          localStorage.setItem('wx_mod_preset_' + modId, presetText);
+        }
+      }
+
+      // 4. 关闭指定世界书条目
+      if (parsedCfg.disableEntries && parsedCfg.disableEntries.length > 0 && api.replaceBook) {
+        var allE = await api.getBook(books.primary);
+        var changed = false;
+        for (var di = 0; di < allE.length; di++) {
+          if (parsedCfg.disableEntries.indexOf(allE[di].name) !== -1 && allE[di].enabled) { allE[di].enabled = false; changed = true; }
+        }
+        if (changed) await api.replaceBook(books.primary, allE, { render: 'debounced' });
+      }
+
+      // 5. 如果有额外AI，注册为激活mod
+      if (parsedCfg.useExtraAI) {
+        localStorage.setItem('wx_active_ai_mod', JSON.stringify({ modId: modId, name: parsedCfg.name }));
+      }
+
+      // 6. 保存mod元信息
+      localStorage.setItem('wx_mod_meta_' + modId, JSON.stringify({
+        isNew: true, useExtraAI: parsedCfg.useExtraAI, name: parsedCfg.name,
+        indexPrefix: indexPrefix, prefix: prefix
+      }));
+
+      if (area) area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">安装成功</div>'
+        + '<div class="wx-ws-detail-desc">' + _wxEscPlain(parsedCfg.name||'') + ' 已安装完成。<br>写入 ' + totalEntries + ' 个世界书条目。'
+        + (parsedCfg.useExtraAI ? '<br>真实世界引擎已激活。' : '') + '</div></div>';
+      _wxLoadAvailable();
+      return;
+    }
+
+    // ═══ 老格式安装 ═══
+    var configs = mod._parsedConfigs || [];
+    var disableEntries = mod._parsedDisableEntries || [];
+    var mvuInserts = mod._parsedMvuInserts || [];
+
+    for (var i = 0; i < mod.entries.length; i++) {
+      var entry = mod.entries[i];
+      if (area && mod.entries.length > 1) area.innerHTML = '<div class="wx-ws-loading">'
+        + '<div style="margin-bottom:8px;">正在安装: ' + _wxEscPlain(entry.name) + '</div>'
+        + '<div style="width:100%;height:6px;border-radius:3px;background:rgba(200,160,60,0.15);overflow:hidden;">'
+        + '<div style="width:' + Math.round((i+1)/mod.entries.length*100) + '%;height:100%;border-radius:3px;background:linear-gradient(90deg,rgba(200,160,60,0.6),rgba(240,200,80,0.8));transition:width 0.2s;"></div>'
+        + '</div>'
+        + '<div style="margin-top:4px;font-size:11px;color:rgba(200,180,140,0.6);">' + (i+1) + ' / ' + mod.entries.length + '</div></div>';
+      var cr = await fetch(entry.url, { cache: 'no-store' });
+      if (!cr.ok) throw new Error('获取内容失败: ' + entry.name);
+      var content = await cr.text();
+      var cfg = _wxMatchConfig(configs, entry.name);
+      var posObj = { type: cfg.posType, order: cfg.order || 100 };
+      if (cfg.posType === 'at_depth') { posObj.role = 'system'; posObj.depth = cfg.depth != null ? cfg.depth : 4; }
+      await api.createEntries(books.primary, [{
+        name: entry.name, content: content, enabled: true,
+        strategy: { type: cfg.strategy, keys: cfg.keys || [] },
+        position: posObj, probability: 100,
+        recursion: { prevent_incoming: true, prevent_outgoing: true, delay_until: null },
+        effect: { sticky: null, cooldown: null, delay: null }
+      }]);
+    }
+
+    if (disableEntries.length > 0 && api.replaceBook) {
+      var allE = await api.getBook(books.primary);
+      var changed = false;
+      for (var di = 0; di < allE.length; di++) {
+        if (disableEntries.indexOf(allE[di].name) !== -1 && allE[di].enabled) { allE[di].enabled = false; changed = true; }
+      }
+      if (changed) await api.replaceBook(books.primary, allE, { render: 'debounced' });
+    }
+
+    if (mvuInserts.length > 0) {
+      try {
+        var Mvu = window.Mvu;
+        if (Mvu) {
+          var mvuData = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+          if (!mvuData) mvuData = { stat_data: {} };
+          if (!mvuData.stat_data) mvuData.stat_data = {};
+          if (!mvuData.stat_data.$mod) mvuData.stat_data.$mod = {};
+          for (var mi = 0; mi < mvuInserts.length; mi++) mvuData.stat_data.$mod[mvuInserts[mi]] = 0;
+          await Mvu.replaceMvuData(mvuData, { type: 'message', message_id: 0 });
+        }
+      } catch(mvuErr) { console.warn('[创意工坊] mvu插入失败:', mvuErr.message); }
+    }
+
+    if (area) area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">安装成功</div>'
+      + '<div class="wx-ws-detail-desc">' + _wxEscPlain(mod.modName||'') + ' 已添加 ' + mod.entries.length + ' 个世界书条目。</div></div>';
+    _wxLoadAvailable();
+  } catch(e) {
+    if (area) area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">安装失败</div>'
+      + '<div class="wx-ws-detail-desc">' + _wxEsc(e.message) + '</div></div>';
+  }
+}
+
+async function _wxLoadInstalled() {
+  var body = _wxDoc().getElementById('wx-ws-body');
+  body.innerHTML = '<div class="wx-ws-loading">正在读取已安装mod...</div>';
+  try {
+    var installed = await _wxGetInstalledMods();
+    var keys = Object.keys(installed).sort(function(a,b){ return parseInt(a)-parseInt(b); });
+    if (keys.length === 0) { body.innerHTML = '<div class="wx-ws-empty">暂无已安装的mod</div>'; return; }
+    var mods = null;
+    try { mods = await _wxFetchGithub(); } catch(e) {}
+    var html = '<div class="wx-ws-mod-list">';
+    for (var i = 0; i < keys.length; i++) {
+      var modId = keys[i], entries = installed[modId];
+      var displayName = (mods && mods[modId] && mods[modId].modName) ? mods[modId].modName : '无名mod';
+      html += '<div class="wx-ws-mod-item" onclick="_wxSelectInstalled(\'' + modId + '\')">';
+      html += '<div class="wx-ws-mod-name">' + modId + '、' + _wxEsc(displayName) + '</div>';
+      html += '<div class="wx-ws-mod-files">' + _wxEsc(entries.map(function(e){return e.name;}).join(', ')) + '</div>';
+      html += '</div>';
+      html += '<div class="wx-ws-detail-slot" id="wx-ws-idetail-' + modId + '" style="display:none"></div>';
+    }
+    html += '</div>';
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = '<div class="wx-ws-empty">读取失败: ' + _wxEsc(e.message) + '</div>';
+  }
+}
+
+async function _wxSelectInstalled(modId) {
+  var allSlots = _wxDoc().querySelectorAll('.wx-ws-detail-slot');
+  allSlots.forEach(function(s) { if (s.id !== 'wx-ws-idetail-' + modId) { s.style.display = 'none'; s.innerHTML = ''; } });
+  var area = _wxDoc().getElementById('wx-ws-idetail-' + modId);
+  if (!area) return;
+  if (_wxSelectedMod === modId && area.style.display !== 'none') {
+    area.style.display = 'none'; area.innerHTML = ''; _wxSelectedMod = null; return;
+  }
+  _wxSelectedMod = modId;
+  area.style.display = 'block';
+  var installed = await _wxGetInstalledMods();
+  var entries = installed[modId] || [];
+  var entryList = entries.map(function(e){ return e.name + (e.enabled ? ' [启用]' : ' [禁用]'); }).join('\n');
+  var mods = null;
+  try { mods = await _wxFetchGithub(); } catch(e) {}
+  var displayName = (mods && mods[modId] && mods[modId].modName) ? mods[modId].modName : '无名mod';
+  area.innerHTML = '<div class="wx-ws-detail">'
+    + '<div class="wx-ws-detail-title">' + _wxEsc(displayName) + '</div>'
+    + '<div class="wx-ws-detail-desc">' + _wxEsc(entryList) + '</div>'
+    + '<div class="wx-ws-detail-actions">'
+    + '<button class="wx-ws-btn danger" onclick="_wxUninstallMod(\'' + modId + '\')">删除</button>'
+    + '<button class="wx-ws-btn" onclick="_wxCheckUpdate(\'' + modId + '\')">检测更新</button>'
+    + '</div></div>';
+}
+
+async function _wxUninstallMod(modId) {
+  var area = _wxDoc().getElementById('wx-ws-idetail-' + modId) || _wxDoc().getElementById('wx-ws-detail-' + modId);
+  if (area) area.innerHTML = '<div class="wx-ws-loading">正在删除...</div>';
+  try {
+    var api = _wxGetAPI();
+    if (!api || !api.replaceBook) throw new Error('世界书API不可用');
+    var books = api.getNames('current');
+    if (!books || !books.primary) throw new Error('未找到角色世界书');
+    var disableEntries = [], mvuInserts = [];
+    var mod = _wxModsCache && _wxModsCache[modId];
+    if (mod) { disableEntries = mod._parsedDisableEntries || []; mvuInserts = mod._parsedMvuInserts || []; }
+    var entries = await api.getBook(books.primary);
+    var prefix = '【' + modId + '】';
+    var indexPrefix = '【' + modId + '-索引】';
+    var filtered = entries.filter(function(e){ return e.name.indexOf(prefix) !== 0 && e.name.indexOf(indexPrefix) !== 0; });
+    var removed = entries.length - filtered.length;
+    if (disableEntries.length > 0) {
+      for (var di = 0; di < filtered.length; di++) {
+        if (disableEntries.indexOf(filtered[di].name) !== -1 && !filtered[di].enabled) filtered[di].enabled = true;
+      }
+    }
+    await api.replaceBook(books.primary, filtered, { render: 'debounced' });
+    // 清理localStorage（new格式mod）
+    try {
+      localStorage.removeItem('wx_mod_preset_' + modId);
+      localStorage.removeItem('wx_mod_meta_' + modId);
+      var activeMod = JSON.parse(localStorage.getItem('wx_active_ai_mod') || 'null');
+      if (activeMod && activeMod.modId === modId) localStorage.removeItem('wx_active_ai_mod');
+    } catch(e) {}
+    if (mvuInserts.length > 0) {
+      try {
+        var Mvu = window.Mvu;
+        if (Mvu) {
+          var mvuData = await Mvu.getMvuData({ type: 'message', message_id: 0 });
+          if (mvuData && mvuData.stat_data && mvuData.stat_data.$mod) {
+            for (var mi = 0; mi < mvuInserts.length; mi++) delete mvuData.stat_data.$mod[mvuInserts[mi]];
+            await Mvu.replaceMvuData(mvuData, { type: 'message', message_id: 0 });
+          }
+        }
+      } catch(mvuErr) {}
+    }
+    area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">删除成功</div>'
+      + '<div class="wx-ws-detail-desc">已移除 ' + removed + ' 个条目。</div></div>';
+    _wxLoadInstalled();
+  } catch(e) {
+    area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">删除失败</div>'
+      + '<div class="wx-ws-detail-desc">' + _wxEsc(e.message) + '</div></div>';
+  }
+}
+
+async function _wxCheckUpdate(modId) {
+  var area = _wxDoc().getElementById('wx-ws-idetail-' + modId) || _wxDoc().getElementById('wx-ws-detail-' + modId);
+  if (area) area.innerHTML = '<div class="wx-ws-loading">正在检测更新...</div>';
+  try {
+    _wxModsCache = null;
+    var mods = await _wxFetchGithub();
+    var mod = mods[modId];
+    if (!mod) { area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-desc">GitHub上未找到此mod。</div></div>'; return; }
+    var api = _wxGetAPI();
+    var books = api.getNames('current');
+    var localEntries = await api.getBook(books.primary);
+    var prefix = '【' + modId + '】';
+    var localMap = {};
+    for (var i = 0; i < localEntries.length; i++) {
+      if (localEntries[i].name.indexOf(prefix) === 0) localMap[localEntries[i].name] = localEntries[i];
+    }
+    var configs = mod._parsedConfigs || [];
+    var diffs = [];
+    for (var j = 0; j < mod.entries.length; j++) {
+      var entry = mod.entries[j];
+      var resp = await fetch(entry.url, { cache: 'no-store' });
+      var remoteContent = resp.ok ? await resp.text() : '';
+      var local = localMap[entry.name];
+      if (!local) { diffs.push(entry.name + ': 本地缺失'); continue; }
+      if (local.content.replace(/\r\n/g,'\n').trim() !== remoteContent.replace(/\r\n/g,'\n').trim()) { diffs.push(entry.name + ': 内容不同'); continue; }
+    }
+    if (diffs.length === 0) {
+      area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">检测结果</div><div class="wx-ws-detail-desc">已是最新版，无需更新。</div></div>';
+    } else {
+      area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">发现差异</div>'
+        + '<div class="wx-ws-detail-desc">' + _wxEsc(diffs.join('\n')) + '</div>'
+        + '<div class="wx-ws-detail-actions"><button class="wx-ws-btn primary" onclick="_wxUpdateMod(\'' + modId + '\')">更新此Mod</button></div></div>';
+    }
+  } catch(e) {
+    area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">检测失败</div><div class="wx-ws-detail-desc">' + _wxEsc(e.message) + '</div></div>';
+  }
+}
+
+async function _wxUpdateMod(modId) {
+  var area = _wxDoc().getElementById('wx-ws-idetail-' + modId) || _wxDoc().getElementById('wx-ws-detail-' + modId);
+  if (area) area.innerHTML = '<div class="wx-ws-loading">正在更新...</div>';
+  try {
+    var api = _wxGetAPI();
+    if (!api || !api.replaceBook) throw new Error('世界书API不可用');
+    var books = api.getNames('current');
+    var entries = await api.getBook(books.primary);
+    var prefix = '【' + modId + '】';
+    var filtered = entries.filter(function(e){ return e.name.indexOf(prefix) !== 0; });
+    await api.replaceBook(books.primary, filtered, { render: 'debounced' });
+    await _wxInstallMod(modId);
+    _wxLoadInstalled();
+  } catch(e) {
+    area.innerHTML = '<div class="wx-ws-detail"><div class="wx-ws-detail-title">更新失败</div><div class="wx-ws-detail-desc">' + _wxEsc(e.message) + '</div></div>';
+  }
+}
+
+function _wxLoadApiConfig() {
+  var body = _wxDoc().getElementById('wx-ws-body');
+  var cfg = { url: '', apiKey: '', model: '' };
+  try { var s = localStorage.getItem('wx_ai_config'); if (s) cfg = JSON.parse(s); } catch(_) {}
+  body.innerHTML = `
+  <div class="wx-api-form">
+    <div class="wx-api-field">
+      <label>API 地址</label>
+      <input type="text" id="wx-api-url" placeholder="https://api.openai.com/v1" value="${_wxEscPlain(cfg.url||'')}">
+    </div>
+    <div class="wx-api-field">
+      <label>API Key</label>
+      <input type="password" id="wx-api-key" placeholder="sk-..." value="${_wxEscPlain(cfg.apiKey||'')}">
+    </div>
+    <div class="wx-api-field">
+      <label>模型</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="wx-api-model" style="flex:1;padding:10px 12px;border-radius:8px;border:1px solid rgba(200,160,60,0.25);background:rgba(10,8,4,0.7);color:rgba(255,245,220,0.9);font-size:14px;outline:none;">
+          <option value="">-- 请先获取模型列表 --</option>
+          ${cfg.model ? '<option value="' + _wxEscPlain(cfg.model) + '" selected>' + _wxEscPlain(cfg.model) + '</option>' : ''}
+        </select>
+        <button class="wx-ws-btn" onclick="_wxFetchModels()">获取模型</button>
+      </div>
+    </div>
+    <div class="wx-api-status" id="wx-api-status"></div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="wx-ws-btn primary" onclick="_wxSaveApiConfig()">保存配置</button>
+    </div>
+  </div>`;
+}
+
+async function _wxFetchModels() {
+  var pdoc = _wxDoc();
+  var urlInput = pdoc.getElementById('wx-api-url');
+  var keyInput = pdoc.getElementById('wx-api-key');
+  var select = pdoc.getElementById('wx-api-model');
+  var status = pdoc.getElementById('wx-api-status');
+  var apiUrl = urlInput ? urlInput.value.trim() : '';
+  var apiKey = keyInput ? keyInput.value.trim() : '';
+  if (!apiUrl) {
+    if (status) { status.textContent = '请先输入API地址'; status.style.color = 'rgba(240,180,80,0.8)'; status.classList.add('show'); }
+    return;
+  }
+  if (status) { status.textContent = '正在获取模型列表...'; status.style.color = 'rgba(100,180,255,0.8)'; status.classList.add('show'); }
+  try {
+    var body = {
+      reverse_proxy: apiUrl,
+      proxy_password: '',
+      chat_completion_source: 'custom',
+      custom_url: apiUrl,
+      custom_include_headers: apiKey ? 'Authorization: Bearer ' + apiKey : ''
+    };
+    var headers = { 'Content-Type': 'application/json' };
+    try { Object.assign(headers, SillyTavern.getRequestHeaders()); } catch(e) {}
+    var resp = await fetch('/api/backends/chat-completions/status', {
+      method: 'POST', headers: headers, body: JSON.stringify(body)
+    });
+    if (!resp.ok) throw new Error('请求失败: ' + resp.status);
+    var data = await resp.json();
+    var modelsList = [];
+    if (data && data.models && Array.isArray(data.models)) modelsList = data.models;
+    else if (data && data.data && Array.isArray(data.data)) modelsList = data.data;
+    else if (Array.isArray(data)) modelsList = data;
+    if (modelsList.length === 0) throw new Error('未获取到模型列表');
+    var currentModel = select.value || '';
+    select.innerHTML = '<option value="">-- 请选择模型 --</option>';
+    modelsList.forEach(function(m) {
+      var name = typeof m === 'string' ? m : m.id;
+      if (!name) return;
+      var sel = (name === currentModel) ? ' selected' : '';
+      select.innerHTML += '<option value="' + _wxEscPlain(name) + '"' + sel + '>' + _wxEscPlain(name) + '</option>';
+    });
+    if (currentModel && !select.querySelector('option[value="' + currentModel + '"]')) {
+      select.innerHTML += '<option value="' + _wxEscPlain(currentModel) + '" selected>' + _wxEscPlain(currentModel) + ' (已保存)</option>';
+    }
+    if (status) { status.textContent = '获取成功，共 ' + modelsList.length + ' 个模型'; status.style.color = 'rgba(100,200,100,0.8)'; }
+  } catch(e) {
+    if (status) { status.textContent = '获取失败: ' + e.message; status.style.color = 'rgba(255,100,100,0.8)'; }
+  }
+}
+
+function _wxRefreshMods() {
+  _wxModsCache = null;
+  _wxLoadAvailable();
+}
+
+function _wxSaveApiConfig() {
+  var pdoc = _wxDoc();
+  var model = pdoc.getElementById('wx-api-model').value || '';
+  if (!model) {
+    var st = pdoc.getElementById('wx-api-status');
+    if (st) { st.textContent = '请先选择模型'; st.style.color = 'rgba(240,180,80,0.8)'; st.classList.add('show'); }
+    return;
+  }
+  var cfg = {
+    url: pdoc.getElementById('wx-api-url').value.trim(),
+    apiKey: pdoc.getElementById('wx-api-key').value.trim(),
+    model: model
+  };
+  localStorage.setItem('wx_ai_config', JSON.stringify(cfg));
+  var st = pdoc.getElementById('wx-api-status');
+  if (st) { st.textContent = '已保存'; st.style.color = 'rgba(100,200,100,0.8)'; st.classList.add('show'); }
+  setTimeout(function(){ if (st) st.classList.remove('show'); }, 2000);
+}
+
+// ── 把需要从 parent document onclick 调用的函数挂到 parent window ──
+(function() {
+  var pw = (typeof parent !== 'undefined' && parent.window) ? parent.window : window;
+  pw._wxOpenWorkshop = _wxOpenWorkshop;
+  pw._wxCloseWorkshop = _wxCloseWorkshop;
+  pw._wxSwitchTab = _wxSwitchTab;
+  pw._wxLoadAvailable = _wxLoadAvailable;
+  pw._wxSelectAvailable = _wxSelectAvailable;
+  pw._wxInstallMod = _wxInstallMod;
+  pw._wxLoadInstalled = _wxLoadInstalled;
+  pw._wxSelectInstalled = _wxSelectInstalled;
+  pw._wxUninstallMod = _wxUninstallMod;
+  pw._wxCheckUpdate = _wxCheckUpdate;
+  pw._wxUpdateMod = _wxUpdateMod;
+  pw._wxLoadApiConfig = _wxLoadApiConfig;
+  pw._wxSaveApiConfig = _wxSaveApiConfig;
+  pw._wxRefreshMods = _wxRefreshMods;
+  pw._wxApplyCode = _wxApplyCode;
+  pw._wxCopyCode = _wxCopyCode;
+  pw._wxFetchModels = _wxFetchModels;
+})();
+
+// ══════════════════════════════════════════════════════
+//  真实世界引擎
+// ══════════════════════════════════════════════════════
+var _wxEngineRunning = false;
+
+function _wxApplyExcludeRules(text, rules) {
+  if (!text || !rules || !rules.length) return text;
+  var result = text;
+  for (var i = 0; i < rules.length; i++) {
+    var rule = rules[i];
+    if (!rule.start || !rule.end) continue;
+    var safety = 0;
+    while (safety++ < 200) {
+      var si = result.indexOf(rule.start);
+      if (si === -1) break;
+      var ei = result.indexOf(rule.end, si);
+      if (ei === -1) break;
+      result = result.substring(0, si) + result.substring(ei + rule.end.length);
+    }
+  }
+  return result.trim();
+}
+
+function _wxGetHistoryContext(chat, turnCount, excludeRules) {
+  if (!chat || !chat.length || turnCount <= 0) return '';
+  var aiMsgs = [];
+  var count = 0;
+  for (var i = chat.length - 1; i >= 0 && count < turnCount; i--) {
+    var msg = chat[i];
+    if (!msg || msg.is_user) continue;
+    var content = msg.mes || '';
+    if (excludeRules && excludeRules.length) content = _wxApplyExcludeRules(content, excludeRules);
+    if (content.trim()) { aiMsgs.unshift(content); count++; }
+  }
+  if (aiMsgs.length === 0) return '';
+  return '以下是前文的故事发展（AI输出），给你用作参考：\n' + aiMsgs.map(function(m){ return 'assistant："' + m + '"'; }).join('\n');
+}
+
+async function _wxGetIndexContent() {
+  try {
+    var api = _wxGetAPI();
+    if (!api) return '';
+    var books = api.getNames('current');
+    if (!books || !books.primary) return '';
+    var entries = await api.getBook(books.primary);
+    var indexContents = [];
+    for (var i = 0; i < entries.length; i++) {
+      if (entries[i].name.indexOf('【') === 0 && entries[i].name.indexOf('-索引】') !== -1 && !entries[i].enabled) {
+        if (entries[i].content) indexContents.push(entries[i].content);
+      }
+    }
+    return indexContents.join('\n');
+  } catch(e) {
+    console.error('[真实世界引擎] 读取索引失败:', e);
+    return '';
+  }
+}
+
+async function _wxCallAI(messages) {
+  var cfg = null;
+  try { cfg = JSON.parse(localStorage.getItem('wx_ai_config')); } catch(e) {}
+  if (!cfg || !cfg.url || !cfg.model) return null;
+  var headers = { 'Content-Type': 'application/json' };
+  try { Object.assign(headers, SillyTavern.getRequestHeaders()); } catch(e) {}
+  var body = JSON.stringify({
+    messages: messages,
+    model: cfg.model,
+    temperature: 0.7,
+    max_tokens: 4096,
+    stream: false,
+    chat_completion_source: 'custom',
+    reverse_proxy: cfg.url,
+    proxy_password: '',
+    custom_url: cfg.url,
+    custom_include_headers: cfg.apiKey ? 'Authorization: Bearer ' + cfg.apiKey : ''
   });
+  var res = await fetch('/api/backends/chat-completions/generate', { method: 'POST', headers: headers, body: body });
+  if (!res.ok) throw new Error('API请求失败: ' + res.status);
+  var data = await res.json();
+  if (data && data.choices && data.choices[0] && data.choices[0].message) return data.choices[0].message.content;
+  if (data && data.content) return data.content;
+  if (typeof data === 'string') return data;
+  throw new Error('无法解析AI响应');
+}
+
+function _wxExtractTag(text, tagName) {
+  if (!text || !tagName) return null;
+  var lower = text.toLowerCase();
+  var open = '<' + tagName.toLowerCase() + '>';
+  var close = '</' + tagName.toLowerCase() + '>';
+  var closeIdx = lower.lastIndexOf(close);
+  if (closeIdx === -1) return null;
+  var openIdx = lower.lastIndexOf(open, closeIdx);
+  if (openIdx === -1) return null;
+  return text.slice(openIdx + open.length, closeIdx);
+}
+
+async function _wxRunEngine(userMessage, params) {
+  if (_wxEngineRunning) return;
+  if (!userMessage || !userMessage.trim()) return;
+
+  var activeMod = null;
+  try { activeMod = JSON.parse(localStorage.getItem('wx_active_ai_mod')); } catch(e) {}
+  if (!activeMod || !activeMod.modId) return;
+
+  var apiCfg = null;
+  try { apiCfg = JSON.parse(localStorage.getItem('wx_ai_config')); } catch(e) {}
+  if (!apiCfg || !apiCfg.url || !apiCfg.model) {
+    try { toastr.warning('请先在创意工坊配置AI接口', '真实世界引擎'); } catch(e) {}
+    return;
+  }
+
+  var presetRaw = localStorage.getItem('wx_mod_preset_' + activeMod.modId);
+  if (!presetRaw) {
+    try { toastr.warning('预设缓存丢失，请到创意工坊对该Mod执行检测更新', '真实世界引擎'); } catch(e) {}
+    return;
+  }
+  var preset = null;
+  try {
+    var parsed = JSON.parse(presetRaw);
+    var arr = parsed['0'] || parsed;
+    preset = Array.isArray(arr) ? arr[0] : arr;
+  } catch(e) {
+    try { toastr.error('预设数据损坏，请重新安装Mod', '真实世界引擎'); } catch(e2) {}
+    return;
+  }
+
+  var task = preset.plotTasks && preset.plotTasks[0];
+  if (!task || !task.promptGroup || !task.promptGroup.length) {
+    try { toastr.error('预设格式异常，缺少promptGroup', '真实世界引擎'); } catch(e) {}
+    return;
+  }
+
+  _wxEngineRunning = true;
+  var $toast = null;
+  try { $toast = toastr.info('正在分析上下文...', '真实世界引擎启动', { timeOut: 0, extendedTimeOut: 0 }); } catch(e) {}
+
+  try {
+    var contextTurnCount = preset.contextTurnCount || 3;
+    var excludeRules = (preset.contextExcludeRules || []).slice();
+    excludeRules.push({ start: '<draft_notes', end: '</draft_notes>' });
+
+    var chat = [];
+    try { chat = SillyTavern.getContext().chat || []; } catch(e) {}
+    var $7 = _wxGetHistoryContext(chat, contextTurnCount, excludeRules);
+    var $1 = await _wxGetIndexContent();
+    var $8 = userMessage;
+
+    if (!$1) {
+      try { toastr.warning('未找到元素索引条目，请确认Mod已正确安装', '真实世界引擎'); } catch(e) {}
+      _wxEngineRunning = false;
+      try { if ($toast) toastr.clear($toast); } catch(e) {}
+      return;
+    }
+
+    var promptGroup = JSON.parse(JSON.stringify(task.promptGroup));
+    var messages = [];
+    for (var i = 0; i < promptGroup.length; i++) {
+      var seg = promptGroup[i];
+      if (!seg || typeof seg.content !== 'string') continue;
+      var c = seg.content;
+      c = c.replace(/(?<!\\)\$1/g, function(){ return $1; });
+      c = c.replace(/(?<!\\)\$7/g, function(){ return $7; });
+      c = c.replace(/(?<!\\)\$8/g, function(){ return $8; });
+      if (!c.trim()) continue;
+      var role = (seg.role || 'user').toUpperCase();
+      if (role === 'SYSTEM') role = 'system';
+      else if (role === 'USER') role = 'user';
+      else if (role === 'AI' || role === 'ASSISTANT') role = 'assistant';
+      else role = role.toLowerCase();
+      messages.push({ role: role, content: c });
+    }
+
+    if (messages.length === 0) {
+      throw new Error('组装后消息为空');
+    }
+
+    try { if ($toast) $toast.find('.toast-message').text('正在调用AI进行元素筛选...'); } catch(e) {}
+
+    var aiReply = await _wxCallAI(messages);
+    if (!aiReply) throw new Error('AI返回空响应');
+
+    var elemMatch = aiReply.match(/<元素筛选结果>([\s\S]*?)<\/元素筛选结果>/);
+    var fortuneMatch = aiReply.match(/<此刻运势>([\s\S]*?)<\/此刻运势>/);
+    var finalMessage;
+    var kwCount = 0;
+
+    if (elemMatch && elemMatch[1] && elemMatch[1].trim()) {
+      var keywords = elemMatch[1].trim();
+      kwCount = keywords.split(/[,，、\n]/).filter(function(s){ return s.trim(); }).length;
+      finalMessage = userMessage + '\n<元素筛选结果>' + keywords + '</元素筛选结果>';
+      if (fortuneMatch && fortuneMatch[1]) {
+        finalMessage += '<此刻运势>' + fortuneMatch[1].trim() + '</此刻运势>';
+      }
+    } else {
+      finalMessage = userMessage;
+      console.warn('[真实世界引擎] AI回复中未找到<元素筛选结果>标签，使用原始用户输入');
+    }
+
+    var pdoc = _wxDoc();
+    var $ta = pdoc.getElementById('send_textarea');
+    if ($ta) { $ta.value = finalMessage; $ta.dispatchEvent(new Event('input', { bubbles: true })); }
+    try { params.prompt = finalMessage; } catch(e) {}
+
+    try { if ($toast) toastr.clear($toast); } catch(e) {}
+    if (kwCount > 0) {
+      try { toastr.success('已注入 ' + kwCount + ' 个元素词', '真实世界引擎完成'); } catch(e) {}
+    } else {
+      try { toastr.warning('AI未返回有效元素词，原始消息已发送', '真实世界引擎'); } catch(e) {}
+    }
+
+  } catch(e) {
+    console.error('[真实世界引擎] 错误:', e);
+    try { if ($toast) toastr.clear($toast); } catch(e2) {}
+    try { toastr.error(e.message || '未知错误', '真实世界引擎异常'); } catch(e2) {}
+  } finally {
+    _wxEngineRunning = false;
+  }
+}
+
+function _wxInitEngine() {
+  try {
+    var stCtx = SillyTavern.getContext();
+    if (!stCtx || !stCtx.eventSource || !stCtx.eventTypes) {
+      console.warn('[真实世界引擎] SillyTavern API不可用，引擎未启动');
+      return;
+    }
+    var es = stCtx.eventSource;
+    var et = stCtx.eventTypes;
+    if (!et.GENERATION_AFTER_COMMANDS) {
+      console.warn('[真实世界引擎] GENERATION_AFTER_COMMANDS事件不可用');
+      return;
+    }
+    es.on(et.GENERATION_AFTER_COMMANDS, async function(type, params, dryRun) {
+      if (dryRun) return;
+      if (type === 'regenerate') return;
+      if (_wxEngineRunning) return;
+      var activeMod = null;
+      try { activeMod = JSON.parse(localStorage.getItem('wx_active_ai_mod')); } catch(e) {}
+      if (!activeMod || !activeMod.modId) return;
+      var chat = [];
+      try { chat = SillyTavern.getContext().chat || []; } catch(e) {}
+      var userMessage = '';
+      if (chat.length > 0) {
+        var last = chat[chat.length - 1];
+        if (last && last.is_user) userMessage = last.mes || '';
+      }
+      if (!userMessage) {
+        var pdoc = _wxDoc();
+        var ta = pdoc.getElementById('send_textarea');
+        if (ta) userMessage = ta.value || '';
+      }
+      if (userMessage && userMessage.trim()) {
+        await _wxRunEngine(userMessage.trim(), params);
+      }
+    });
+    console.log('[真实世界引擎] 事件监听已注册');
+  } catch(e) {
+    console.error('[真实世界引擎] 初始化失败:', e);
+  }
+}
+
+$(() => {
+  console.log('[天书江湖录·控制脚本] 已启动');
+  console.log(`[武功库] 共 ${ALL_KUNGFU_NAMES.length} 个武功：${ALL_KUNGFU_NAMES.join('、')}`);
+  _initTianShuOrb();
+  _wxInitEngine();
+});
