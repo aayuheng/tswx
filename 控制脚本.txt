@@ -6625,10 +6625,10 @@ function _wxParseConfig(text) {
       else current.posType = 'at_depth';
     } else if (line.indexOf('插入深度') === 0) {
       if (!current) current = { entryName:'', strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
-      current.depth = parseInt((line.split('：')[1]||'').trim()) || 4;
+      var d = parseInt((line.split('：')[1]||'').trim()); current.depth = isNaN(d) ? 4 : d;
     } else if (line.indexOf('顺序') === 0) {
       if (!current) current = { entryName:'', strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
-      current.order = parseInt((line.split('：')[1]||'').trim()) || 100;
+      var o = parseInt((line.split('：')[1]||'').trim()); current.order = isNaN(o) ? 100 : o;
     } else {
       if (current) configs.push(current);
       current = { entryName: line, strategy:'constant', keys:[], posType:'before_character_definition', depth:4, order:100 };
