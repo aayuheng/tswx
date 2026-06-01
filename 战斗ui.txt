@@ -4172,18 +4172,22 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
       if(Math.random()<(s.成功率||0)){
         playSfx(SFX.heal);
         const val=s.数值||0;
+        // 攻击技附带的回血/回内是好buff，给攻击者自己
+        const _isAtkKf=(kf.基础效果值||0)!==0&&!(kf.作用范围||'').includes('我方')&&!(kf.作用范围||'').includes('仅我');
+        const hKey=_isAtkKf?atkKey:tgtKey;
+        const hChar=_isAtkKf?atk:tgt;
         if(s.名称==='回血'){
-          const h=val>0&&val<=1?Math.floor(tgt.hp.max*val):Math.floor(val);
-          if(h>0){tgt.hp.cur=Math.min(tgt.hp.max,tgt.hp.cur+h);updateCard(tgtKey);
+          const h=val>0&&val<=1?Math.floor(hChar.hp.max*val):Math.floor(val);
+          if(h>0){hChar.hp.cur=Math.min(hChar.hp.max,hChar.hp.cur+h);updateCard(hKey);
             log(`${atk.name}「${kfName}」回血 +${h}`,'l-heal');
-            floatDmg(q(`card-${tgtKey}`),`+${h}`,'hsl(158,50%,55%)');fxHeal(q(`card-${tgtKey}`),'hp');
-            G.battleLog.push({t:'HEAL',a:atk.name,v:tgt.name,sk:kfName,d:h});}
+            floatDmg(q(`card-${hKey}`),`+${h}`,'hsl(158,50%,55%)');fxHeal(q(`card-${hKey}`),'hp');
+            G.battleLog.push({t:'HEAL',a:atk.name,v:hChar.name,sk:kfName,d:h});}
         } else {
-          const m=val>0&&val<=1?Math.floor(tgt.mp.max*val):Math.floor(val);
-          if(m>0){tgt.mp.cur=Math.min(tgt.mp.max,tgt.mp.cur+m);updateCard(tgtKey);
+          const m=val>0&&val<=1?Math.floor(hChar.mp.max*val):Math.floor(val);
+          if(m>0){hChar.mp.cur=Math.min(hChar.mp.max,hChar.mp.cur+m);updateCard(hKey);
             log(`${atk.name}「${kfName}」回内 +${m}`,'l-heal');
-            floatDmg(q(`card-${tgtKey}`),`+${m}`,'hsl(210,70%,55%)');fxHeal(q(`card-${tgtKey}`),'mp');
-            G.battleLog.push({t:'HEAL',a:atk.name,v:tgt.name,sk:kfName,d:m});}
+            floatDmg(q(`card-${hKey}`),`+${m}`,'hsl(210,70%,55%)');fxHeal(q(`card-${hKey}`),'mp');
+            G.battleLog.push({t:'HEAL',a:atk.name,v:hChar.name,sk:kfName,d:m});}
         }
       }
       return;
