@@ -7114,8 +7114,16 @@ async function _wxUpdateMod(modId) {
     var books = api.getNames('current');
     var entries = await api.getBook(books.primary);
     var prefix = '【' + modId + '】';
-    var filtered = entries.filter(function(e){ return e.name.indexOf(prefix) !== 0; });
+    var indexPrefix = '【' + modId + '-索引】';
+    var filtered = entries.filter(function(e){ return e.name.indexOf(prefix) !== 0 && e.name.indexOf(indexPrefix) !== 0; });
     await api.replaceBook(books.primary, filtered, { render: 'debounced' });
+    // 清理旧缓存，防止新版移除预设/额外AI后残留
+    try {
+      localStorage.removeItem('wx_mod_preset_' + modId);
+      localStorage.removeItem('wx_mod_meta_' + modId);
+      var activeMod = JSON.parse(localStorage.getItem('wx_active_ai_mod') || 'null');
+      if (activeMod && activeMod.modId === modId) localStorage.removeItem('wx_active_ai_mod');
+    } catch(e) {}
     await _wxInstallMod(modId);
     _wxLoadInstalled();
   } catch(e) {
