@@ -3075,10 +3075,10 @@ function renderParty() {
       rows += `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--gold-dim)"><span>${_WX_NAMES[k]}</span><span>本地: ${local}</span><span${diff}>最新: ${remote}</span></div>`;
     }
     showModal({
-      title: '版本管理',
+      title: '版本管理&修正玩家属性',
       text: rows,
       actions: [
-        { label: '一键更新', cls: 'confirm', cb: async () => {
+        { label: '一键更新/修正', cls: 'confirm', cb: async () => {
           try {
             showToast('正在更新脚本...');
             const [newVer, ctrl, daily, battle, opening] = await Promise.all([
