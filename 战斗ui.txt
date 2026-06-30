@@ -4863,7 +4863,7 @@ function processStatusTick(key){
         }
       }
     }
-	if(s.名称 === '奴隶神功' && c.alive){
+	if(s.名称 === '奴隶真气护身' && c.alive){
       const buffsPool = ['攻击上升','防御上升','力量上升','身法上升','闪避上升','速度上升'];
       const randomBuffName = buffsPool[Math.floor(Math.random() * buffsPool.length)];
       
@@ -4872,10 +4872,10 @@ function processStatusTick(key){
         名称: randomBuffName,
         数值: 1,
         剩余回合: 1,
-        来源: '奴隶神功'
+        来源: '奴隶真气护身'
       });
       
-      log(`${c.name}【奴隶神功】触发，随机获得【${randomBuffName}】（1回合）`, 'l-buff');
+      log(`${c.name}【奴隶真气护身】触发，随机获得【${randomBuffName}】（1回合）`, 'l-buff');
       floatDmg(q(`card-${key}`), randomBuffName, 'hsl(42,80%,65%)', '17px');
     }
     if(s.剩余回合!==-1)s.剩余回合--;
@@ -5224,7 +5224,7 @@ function makeCard(key){
 }
 
 function renderSt(key){
-  const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶神功','领袖气场'];
+  const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
     const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称);
@@ -5234,9 +5234,9 @@ function renderSt(key){
     if(s.名称 === '领袖气场'){
       return `<span class="s-bd s-buff" style="background:linear-gradient(90deg,hsla(42,80%,55%,0.2),hsla(280,60%,60%,0.15));border-color:hsl(42,85%,60%);font-weight:700" title="10%几率免疫异常状态">领袖气场</span>`;
     }
-	// 奴隶神功特殊美化
-    if(s.名称 === '奴隶神功'){
-      return `<span class="s-bd s-buff" style="background:linear-gradient(90deg,hsla(42,80%,55%,0.25),hsla(280,65%,65%,0.2));border-color:hsl(42,85%,60%);font-weight:700" title="每回合随机获得一项属性提升">奴隶神功</span>`;
+	// 奴隶真气护身特殊美化
+    if(s.名称 === '奴隶真气护身'){
+      return `<span class="s-bd s-buff" style="background:linear-gradient(90deg,hsla(42,80%,55%,0.25),hsla(280,65%,65%,0.2));border-color:hsl(42,85%,60%);font-weight:700" title="每回合随机获得一项属性提升">奴隶真气护身</span>`;
     }
     // 龙象之力：显示层数
     if(s.名称==='龙象之力'){const stacks=Math.round(s.数值/0.1);return `<span class="s-bd ${cls}" title="龙象之力 ×${stacks}（+${Math.round(s.数值*100)}%伤害）">龙象之力(${stacks})</span>`;}
