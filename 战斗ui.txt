@@ -2803,6 +2803,21 @@ async function init(){
     G.eKeys.push(key);
     G.statuses[key]=parseStatusList(charData.核心状态?.状态列表);
     G.cds[key]={};
+
+    // ── 自动给Boss添加「boss气场」被动 ──
+    const enemyName = (charData.基础信息?.姓名 || '').toString();
+    const enemyTitle = (charData.基础信息?.称号 || '').toString();
+    
+    if(enemyName.includes('领袖') || enemyTitle.includes('领袖')){
+      
+      applyStatus(key, {
+        名称: '领袖气场',
+        数值: 0,
+        剩余回合: -1,
+        来源: '领袖被动'
+      });
+      console.log(`${enemyName} 的[领袖气场]爆发了！`);
+    }
   }
   // ── 心魔战：敌人仅一个且名字以[心魔]开头 → 队友不参战 ──
   if(G.eKeys.length===1){
@@ -4835,6 +4850,34 @@ function processStatusTick(key){
       floatDmg(q(`card-${key}`),`-${d}`,'hsl(0,70%,50%)','14px');
       updateCard(key);
     }
+	if(s.名称 === '领袖气场' && c.alive){
+      const abnormalStatuses = ['点穴','眩晕','冰冻','封穴','失明','攻击下降','防御下降'];
+      // 每回合有10%概率清除身上一个异常状态
+      if(Math.random() < 0.10){
+        const hasAbnormal = G.statuses[key].some(st => abnormalStatuses.includes(st.名称));
+        if(hasAbnormal){
+          G.statuses[key] = G.statuses[key].filter(st => !abnormalStatuses.includes(st.名称));
+          log(`${c.name}【领袖气场】发动，免疫并清除异常状态！`, 'l-buff');
+          floatDmg(q(`card-${key}`), '领袖气场', 'hsl(42,80%,65%)', '18px');
+          updateCard(key);
+        }
+      }
+    }
+	if(s.名称 === '奴隶神功' && c.alive){
+      const buffsPool = ['攻击上升','防御上升','力量上升','身法上升','闪避上升','速度上升'];
+      const randomBuffName = buffsPool[Math.floor(Math.random() * buffsPool.length)];
+      
+      // 施加1回合的随机增益
+      applyStatus(key, {
+        名称: randomBuffName,
+        数值: 1,
+        剩余回合: 1,
+        来源: '奴隶神功'
+      });
+      
+      log(`${c.name}【奴隶神功】触发，随机获得【${randomBuffName}】（1回合）`, 'l-buff');
+      floatDmg(q(`card-${key}`), randomBuffName, 'hsl(42,80%,65%)', '17px');
+    }
     if(s.剩余回合!==-1)s.剩余回合--;
   }
   G.statuses[key]=sts.filter(s=>s.剩余回合===-1||s.剩余回合>0);
@@ -5181,12 +5224,20 @@ function makeCard(key){
 }
 
 function renderSt(key){
-  const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力'];
+  const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶神功','领袖气场'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
     const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称);
     const ctrl=CTRLS.includes(s.名称);
     const cls=b?'s-buff':ctrl?'s-ctrl':'s-debuff';
+	// 领袖气场特殊美化
+    if(s.名称 === '领袖气场'){
+      return `<span class="s-bd s-buff" style="background:linear-gradient(90deg,hsla(42,80%,55%,0.2),hsla(280,60%,60%,0.15));border-color:hsl(42,85%,60%);font-weight:700" title="10%几率免疫异常状态">领袖气场</span>`;
+    }
+	// 奴隶神功特殊美化
+    if(s.名称 === '奴隶神功'){
+      return `<span class="s-bd s-buff" style="background:linear-gradient(90deg,hsla(42,80%,55%,0.25),hsla(280,65%,65%,0.2));border-color:hsl(42,85%,60%);font-weight:700" title="每回合随机获得一项属性提升">奴隶神功</span>`;
+    }
     // 龙象之力：显示层数
     if(s.名称==='龙象之力'){const stacks=Math.round(s.数值/0.1);return `<span class="s-bd ${cls}" title="龙象之力 ×${stacks}（+${Math.round(s.数值*100)}%伤害）">龙象之力(${stacks})</span>`;}
     if(s.剩余回合===-1&&s.来源){
