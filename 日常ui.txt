@@ -3149,7 +3149,7 @@ function renderParty() {
     });
   }
   toolbar.querySelector('.wx-money').addEventListener('click', async () => {
-    const _WX_BASE = 'https://raw.githubusercontent.com/bibilabu2026/tswx/main/';
+    const _WX_BASE = 'https://raw.githubusercontent.com/aayuheng/tswx@main/main/';
     const _WX_KEYS = { ctrl:'wx_ctrl_code', daily:'wx_daily_code', battle:'wx_battle_code', opening:'wx_opening_code' };
     const _WX_NAMES = { ctrl:'控制脚本', daily:'日常ui', battle:'战斗ui', opening:'开场ui' };
     const _WX_FILES = { ctrl:'控制脚本.txt', daily:'日常ui.txt', battle:'战斗ui.txt', opening:'开场ui.txt' };
