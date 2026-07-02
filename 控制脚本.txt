@@ -6959,7 +6959,7 @@ function _wxGetAPI() {
 async function _wxFetchGithub() {
   if (_wxModsCache) return _wxModsCache;
   var noCache = { cache: 'no-store' };
-  var resp = await fetch('https://api.github.com/repos/aayuheng/tswx@main/contents/cygf', noCache);
+  var resp = await fetch('https://api.github.com/repos/aayuheng/tswx/contents/cygf', noCache)
   if (!resp.ok) throw new Error('GitHub API: ' + resp.status);
   var files = await resp.json();
   var mods = {};
