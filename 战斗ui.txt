@@ -2781,6 +2781,11 @@ async function init(){
     G.actors[k]=buildActor(k,'player',useData.玩家);
     G.pKeys.push(k);
     G.statuses[k]=parseStatusList(useData.玩家.核心状态?.状态列表);
+	// 加载持久状态（玩家）
+const persistent = useData.玩家.持久状态 || [];
+for (const stName of persistent) {
+  applyStatus(k, { 名称: stName, 数值: 0, 剩余回合: -1, 来源: '持久状态' });
+}
     G.cds[k]={};
     const _pExp=useData.玩家.基础信息?.经验值||0;
     const _pLv=useData.玩家.基础信息?.等级||1;
@@ -2792,6 +2797,11 @@ async function init(){
     G.actors[name]=buildActor(name,'ally',charData);
     G.pKeys.push(name);
     G.statuses[name]=parseStatusList(charData.核心状态?.状态列表);
+	// 加载持久状态（队友）
+const persistentAlly = charData.持久状态 || [];
+for (const stName of persistentAlly) {
+  applyStatus(name, { 名称: stName, 数值: 0, 剩余回合: -1, 来源: '持久状态' });
+}
     G.cds[name]={};
     const _aExp=charData.基础信息?.经验值||0;
     const _aLv=charData.基础信息?.等级||1;
@@ -2986,20 +2996,6 @@ function getAttr(key,name){
     const spUp=sts.find(s=>s.名称==='速度上升');
     if(spUp)v*=1+(spUp.数值||0.1);
   }
-// 新增：识别护身·前缀的状态，与普通同名状态叠加
-  const attrMap = {
-      '力量': '攻击上升',
-      '防御力': '防御上升',
-      '身法': '身法上升',
-      '速度': '速度上升'
-  };
-if (attrMap[name]) {
-    const stateName = attrMap[name];
-    const normalSt = sts.find(s => s.名称 === stateName);
-    const prefixSt = sts.find(s => s.名称 === '护身·' + stateName);
-    if (normalSt) v *= 1 + (normalSt.数值 || 0);
-    if (prefixSt) v *= 1 + (prefixSt.数值 || 0);
-}
   return Math.floor(v);
 }
 
@@ -4718,80 +4714,118 @@ function calcKfMaxBonus(key){
 function grantKillExp(enemyKey){
   const e=gA(enemyKey); if(!e)return;
   const alive=aliveP(); if(!alive.length)return;
-  const pLv=G.charCurLv[G.pKeys[0]]||gA(G.pKeys[0])?.level||1;
-  const d=e.level-pLv;
-  const m=d>=10?1.5:d>=5?1.2:d<=-10?0.4:d<=-5?0.7:1;
   const boss=/boss/i.test(e.name)||/boss/i.test(e.title||'');
   const elite=/精英/.test(e.name);
-  const total=Math.floor(e.level*30*m*(boss?3:elite?1.5:1));
-  const _rawPer=Math.ceil(Math.floor(total/alive.length)*rand(0.95,1.2));
   const _isXinmoExp=/^\[心魔\]/.test(e.name);
-  const per=_isXinmoExp?_rawPer*3:_rawPer;
-  if(per<=0)return;
-  G.expGained=(G.expGained||0)+per*alive.length;
-  log(`击败 ${e.name}，获得 ${per} 经验${_isXinmoExp?' (心魔3倍)':''}`,'l-sys');
-  for(const k of alive){
-    floatDmg(q(`card-${k}`),`经验+${per}`,'var(--gold)','13px');
-    let curExp=(G.charCurExp[k]||0)+per;
-    let curLv=G.charCurLv[k]||gA(k)?.level||1;
-    let leveled=0;
-    while(curExp>=expToNext(curLv)){
-      curExp-=expToNext(curLv);
-      curLv++; leveled++;
+  
+  // 1. 计算每个角色的等级系数
+  const charM = {};
+  let sumM = 0;
+  for (const k of alive) {
+    const lv = G.charCurLv[k] || gA(k)?.level || 1;
+    const d = e.level - lv;
+    // 等级差倍数（与之前逻辑一致）
+    const m = d>=10 ? 1.5 : d>=5 ? 1.2 : d<=-10 ? 0.4 : d<=-5 ? 0.7 : 1;
+    charM[k] = m;
+    sumM += m;
+  }
+  const avgM = sumM / alive.length;
+  
+  // 2. 总经验基础值
+  const baseTotal = Math.floor(e.level * 30 * (boss ? 3 : (elite ? 1.5 : 1)));
+  // 若是心魔，总经验×3（但后面会每个角色单独乘，所以这里不变）
+  const totalExp = baseTotal;
+  
+  // 3. 为每个角色分配经验（按比例 + 随机波动）
+  let totalAllocated = 0;
+  const perList = {};
+  for (const k of alive) {
+    const m = charM[k];
+    // 个人比例经验，并加入随机波动（0.95~1.2）
+    let share = Math.floor(totalExp * (m / sumM) * rand(0.95, 1.2));
+    if (share < 1) share = 1;
+    if (_isXinmoExp) share *= 3; // 心魔3倍
+    perList[k] = share;
+    totalAllocated += share;
+  }
+  // 若分配总和与总经验偏差过大，可微调（这里不处理，因为随机波动合理）
+  
+  G.expGained = (G.expGained || 0) + totalAllocated;
+  log(`击败 ${e.name}，获得 ${totalAllocated} 经验${_isXinmoExp?' (心魔3倍)':''}`,'l-sys');
+
+  // 4. 逐个角色增加经验
+  for (const k of alive) {
+    // ---- RMB/肉便器无法获得经验 ----
+    if ((G.statuses[k]||[]).some(s => s.名称 === '肉便器')) {
+      floatDmg(q(`card-${k}`), '无法获得经验', '#ff4444', '13px');
+      continue;
     }
-    G.charCurExp[k]=curExp;
-    G.charCurLv[k]=curLv;
-    if(leveled>0){
-      const oldLv=curLv-leveled;
-      log(`${gA(k)?.name} 升级！Lv${oldLv} → Lv${curLv}`,'l-buff');
-      G.battleLog.push({t:'LVUP',v:gA(k)?.name,lv:curLv});
-      // 基本功点数：每级+5
-      G.charBskPts[k]=(G.charBskPts[k]||0)+leveled*5;
-      // 属性成长
-      const ac=gA(k); if(!ac)continue;
-      const oldHpMax=ac.hp.max, oldMpMax=ac.mp.max;
-      let attrDelta={};
-      const growFn=window.parent?.WX_LEVEL_ATTR_GROWTH;
-      if(typeof growFn==='function'){
-        attrDelta=growFn(oldLv,curLv);
-        for(const[attr,d]of Object.entries(attrDelta)){
-          ac.attr[attr]=(ac.attr[attr]||0)+d;
+    // ---- 伴侣经验×1.1 ----
+    let exp = perList[k];
+    if ((G.statuses[k]||[]).some(s => s.名称 === '伴侣')) {
+      exp = Math.floor(exp * 1.1);
+    }
+    // 显示获得经验
+    floatDmg(q(`card-${k}`), `经验+${exp}`, 'var(--gold)', '13px');
+    
+    // 原有的升级逻辑（不变）
+    let curExp = (G.charCurExp[k] || 0) + exp;
+    let curLv = G.charCurLv[k] || gA(k)?.level || 1;
+    let leveled = 0;
+    while (curExp >= expToNext(curLv)) {
+      curExp -= expToNext(curLv);
+      curLv++;
+      leveled++;
+    }
+    G.charCurExp[k] = curExp;
+    G.charCurLv[k] = curLv;
+    if (leveled > 0) {
+      const oldLv = curLv - leveled;
+      log(`${gA(k)?.name} 升级！Lv${oldLv} → Lv${curLv}`, 'l-buff');
+      G.battleLog.push({t:'LVUP', v:gA(k)?.name, lv:curLv});
+      G.charBskPts[k] = (G.charBskPts[k] || 0) + leveled * 5;
+      const ac = gA(k);
+      if (!ac) continue;
+      const oldHpMax = ac.hp.max, oldMpMax = ac.mp.max;
+      let attrDelta = {};
+      const growFn = window.parent?.WX_LEVEL_ATTR_GROWTH;
+      if (typeof growFn === 'function') {
+        attrDelta = growFn(oldLv, curLv);
+        for (const [attr, d] of Object.entries(attrDelta)) {
+          ac.attr[attr] = (ac.attr[attr] || 0) + d;
         }
       }
-      // 重算上限；升级回满血
-      // 杀死最后一个敌人触发的升级：记录升级前血量供战报使用
-      const _isFinalKill=aliveE().length===0;
-      if(_isFinalKill){
-        if(!G.hpBeforeLvup)G.hpBeforeLvup={};
-        if(!G.hpBeforeLvup[k]) G.hpBeforeLvup[k]={cur:ac.hp.cur,max:ac.hp.max};
+      const _isFinalKill = aliveE().length === 0;
+      if (_isFinalKill) {
+        if (!G.hpBeforeLvup) G.hpBeforeLvup = {};
+        if (!G.hpBeforeLvup[k]) G.hpBeforeLvup[k] = {cur: ac.hp.cur, max: ac.hp.max};
       }
-      const attr=ac.attr||{};
-      const bonus=calcKfMaxBonus(k);
-      ac.hp.max=300+curLv*60+(attr.力量||0)*20+bonus.hp;
-      ac.mp.max=300+curLv*60+(attr.内功修为||0)*20+bonus.mp;
-      ac.hp.cur=ac.hp.max;
-      ac.mp.cur=ac.mp.max;
-      ac.level=curLv;
+      const attr = ac.attr || {};
+      const bonus = calcKfMaxBonus(k);
+      ac.hp.max = 300 + curLv * 60 + (attr.力量 || 0) * 20 + bonus.hp;
+      ac.mp.max = 300 + curLv * 60 + (attr.内功修为 || 0) * 20 + bonus.mp;
+      ac.hp.cur = ac.hp.max;
+      ac.mp.cur = ac.mp.max;
+      ac.level = curLv;
       updateCard(k);
-      // 记录升级详情供结算弹窗展示（多次升级时累加而非覆盖）
-      if(!G.lvupDetails)G.lvupDetails={};
-      const _prev=G.lvupDetails[k];
-      if(_prev){
-        const _md={};
-        for(const[a,d]of Object.entries(_prev.attrDelta||{})) _md[a]=(_md[a]||0)+d;
-        for(const[a,d]of Object.entries(attrDelta||{})) _md[a]=(_md[a]||0)+d;
-        G.lvupDetails[k]={
-          name:ac.name, oldLv:_prev.oldLv, newLv:curLv,
-          oldHpMax:_prev.oldHpMax, newHpMax:ac.hp.max,
-          oldMpMax:_prev.oldMpMax, newMpMax:ac.mp.max,
-          attrDelta:_md, bskPts:_prev.bskPts+leveled*5
+      if (!G.lvupDetails) G.lvupDetails = {};
+      const _prev = G.lvupDetails[k];
+      if (_prev) {
+        const _md = {};
+        for (const [a, d] of Object.entries(_prev.attrDelta || {})) _md[a] = (_md[a] || 0) + d;
+        for (const [a, d] of Object.entries(attrDelta || {})) _md[a] = (_md[a] || 0) + d;
+        G.lvupDetails[k] = {
+          name: ac.name, oldLv: _prev.oldLv, newLv: curLv,
+          oldHpMax: _prev.oldHpMax, newHpMax: ac.hp.max,
+          oldMpMax: _prev.oldMpMax, newMpMax: ac.mp.max,
+          attrDelta: _md, bskPts: _prev.bskPts + leveled * 5
         };
-      }else{
-        G.lvupDetails[k]={
-          name:ac.name, oldLv, newLv:curLv,
-          oldHpMax, newHpMax:ac.hp.max,
-          oldMpMax, newMpMax:ac.mp.max,
-          attrDelta, bskPts:leveled*5
+      } else {
+        G.lvupDetails[k] = {
+          name: ac.name, oldLv, newLv: curLv,
+          oldHpMax, newHpMax: ac.hp.max,
+          oldMpMax, newMpMax: ac.mp.max,
+          attrDelta, bskPts: leveled * 5
         };
       }
     }
@@ -4877,21 +4911,30 @@ function processStatusTick(key){
         }
       }
     }
-	if (s.名称 === '奴隶真气护身' && c.alive) {
-    const buffsPool = ['攻击上升','防御上升','身法上升','速度上升'];
-    const rawBuff = buffsPool[Math.floor(Math.random() * buffsPool.length)];
-    const buffName = '护身·' + rawBuff;  // 例如 "护身·攻击上升"
-
-    applyStatus(key, {
-        名称: buffName,
-        数值: 1,   // 100% 提升（与普通增益对齐，可调整）
+	if(s.名称 === '死亡奴隶' && c.alive){
+  const heal = Math.floor(c.hp.max * 0.05);
+  if (heal > 0) {
+    c.hp.cur = Math.min(c.hp.max, c.hp.cur + heal);
+    log(`${c.name}【死亡奴隶】恢复 ${heal} 血量`, 'l-heal');
+    floatDmg(q(`card-${key}`), `+${heal}`, 'hsl(158,50%,55%)', '14px');
+    fxHeal(q(`card-${key}`), 'hp');
+  }
+}
+	if(s.名称 === '奴隶真气护身' && c.alive){
+      const buffsPool = ['攻击上升','防御上升','力量上升','身法上升','闪避上升','速度上升'];
+      const randomBuffName = buffsPool[Math.floor(Math.random() * buffsPool.length)];
+      
+      // 施加1回合的随机增益
+      applyStatus(key, {
+        名称: randomBuffName,
+        数值: 1,
         剩余回合: 1,
         来源: '奴隶真气护身'
-    });
-
-    log(`${c.name}【奴隶真气护身】触发，获得【${buffName}】（1回合）`, 'l-buff');
-    floatDmg(q(`card-${key}`), buffName, 'hsl(42,80%,65%)', '17px');
-}
+      });
+      
+      log(`${c.name}【奴隶真气护身】触发，随机获得【${randomBuffName}】（1回合）`, 'l-buff');
+      floatDmg(q(`card-${key}`), randomBuffName, 'hsl(42,80%,65%)', '17px');
+    }
     if(s.剩余回合!==-1)s.剩余回合--;
   }
   G.statuses[key]=sts.filter(s=>s.剩余回合===-1||s.剩余回合>0);
@@ -5087,7 +5130,18 @@ async function doSettle(){
     if(res==='win'&&G.goldGained>0&&sd.玩家){
       sd.玩家.金钱=(sd.玩家.金钱||0)+G.goldGained;
     }
-
+// ========== 保存持久状态 ==========
+const PERSISTENT_KEEP = ['死亡奴隶', '伴侣', '玩物', '人体家具', '尸体玩偶', '肉便器']; // 需要保留的状态名称
+for (const k of G.pKeys) {
+  const sts = G.statuses[k] || [];
+  // 筛选出需要持久化的状态（剩余回合为 -1 或 >0，且在保留列表中）
+  const toKeep = sts
+    .filter(s => PERSISTENT_KEEP.includes(s.名称) && (s.剩余回合 === -1 || s.剩余回合 > 0))
+    .map(s => s.名称);
+  // 写入 MVU
+  const prefix = k === 'player' ? 'stat_data.玩家' : `stat_data.我方队友.${k}`;
+  _.set(data, `${prefix}.持久状态`, toKeep);
+}
     await Mvu.replaceMvuData(data,{type:'message',message_id:settleId});
     sendBattleRecord();
     toast('结算完成');
@@ -5241,10 +5295,6 @@ function renderSt(key){
   const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
-// 跳过由奴隶真气护身触发的护身·临时状态（不显示在前端）
-    if (s.来源 === '奴隶真气护身' && s.名称 && s.名称.startsWith('护身·')) {
-        return null; // 返回 null，后面用 filter 移除
-    }
     const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称);
     const ctrl=CTRLS.includes(s.名称);
     const cls=b?'s-buff':ctrl?'s-ctrl':'s-debuff';
@@ -5252,12 +5302,10 @@ function renderSt(key){
     if(s.名称 === '领袖气场'){
       return `<span class="s-bd s-buff" style="background:linear-gradient(90deg,hsla(42,80%,55%,0.2),hsla(280,60%,60%,0.15));border-color:hsl(42,85%,60%);font-weight:700" title="10%几率免疫异常状态">领袖气场</span>`;
     }
+	// 奴隶真气护身特殊美化
     if(s.名称 === '奴隶真气护身'){
-    // 查找当前由奴隶触发且带有 '护身·' 前缀的增益
-    const activeBuff = (G.statuses[key] || []).find(st => st.来源 === '奴隶真气护身' && st.名称 && st.名称.startsWith('护身·'));
-    const buffName = activeBuff ? activeBuff.名称.replace('护身·', '') : '无';
-    return `<span class="s-bd s-buff" style="background:linear-gradient(...);" title="当前增益：${buffName}">奴隶真气护身:${buffName}</span>`;
-}
+      return `<span class="s-bd s-buff" style="background:linear-gradient(90deg,hsla(42,80%,55%,0.25),hsla(280,65%,65%,0.2));border-color:hsl(42,85%,60%);font-weight:700" title="每回合随机获得一项属性提升">奴隶真气护身</span>`;
+    }
     // 龙象之力：显示层数
     if(s.名称==='龙象之力'){const stacks=Math.round(s.数值/0.1);return `<span class="s-bd ${cls}" title="龙象之力 ×${stacks}（+${Math.round(s.数值*100)}%伤害）">龙象之力(${stacks})</span>`;}
     if(s.剩余回合===-1&&s.来源){
@@ -5269,7 +5317,7 @@ function renderSt(key){
     }
     const r=s.剩余回合===-1?'∞':s.剩余回合;
     return `<span class="s-bd ${cls}">${s.名称}(${r})</span>`;
-  }).filter(s => s !== null).join('');
+  }).join('');
 }
 
 function renderAtb(){
