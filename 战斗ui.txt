@@ -3568,7 +3568,7 @@ async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
   dmg=dmg*(1-def/(def+200));
   if(G._overLvTier>=2&&G.eKeys.includes(atkKey))dmg*=1.7;
   // 攻击上升/下降：最终伤害乘数
-  const _atkUp=(G.statuses[atkKey]||[]).find(s=>s.名称==='攻击上升' || s.名称 === '护身·攻击上升'));
+  const _atkUp=(G.statuses[atkKey]||[]).find(s=>s.名称==='攻击上升' || s.名称 === '护身·攻击上升');
   if(_atkUp)dmg*=1+(_atkUp.数值||0.2);
   const _atkDn=(G.statuses[atkKey]||[]).find(s=>s.名称==='攻击下降');
   if(_atkDn)dmg*=1-(_atkDn.数值||0.2);

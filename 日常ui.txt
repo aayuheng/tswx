@@ -3594,7 +3594,7 @@ function buildItemsPanel(charKey, char) {
     const wornMap=getWornMap();
     let rows='';
     // 武器
-    Object.entries(weapons).forEach(([n,d])=>{
+    Object.entries(weapons).forEach(([n, d])=>{
       const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
       const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
       rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
@@ -3603,42 +3603,43 @@ function buildItemsPanel(charKey, char) {
       </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="主武器类">丢弃</button></div>`;
     });
     // 饰品（包括人格果冻）
-    Object.entries(accs).forEach(([n,d])=>{
-if (n.includes('人格果冻')) {
-  const isCombined = item.组合状态 && typeof item.组合状态 === 'object' && !item.组合状态.已使用;
-  const isUsed = item.组合状态?.已使用 === true;
-  const personData = item.人格数据 || {
-    原姓名: item.原姓名 || '未知',
-    堕落值: item.堕落值 || 0,
-    好感度: item.好感度 || 0
-  };
-  let injectInfo = '';
-  if (item.组合状态?.空壳名称) {
-    injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.空壳名称}</span>`;
-  }
-  const bonus = Object.entries(item.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
-  const comboBtn = isUsed
-    ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
-    : (item.组合状态 && !isUsed)
-      ? `<button class="wx-good-btn" data-uncombine="${item.组合状态.空壳名称}" data-target="${n}">解除组合</button>`
-      : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
-  return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
-    <div class="wx-equip-item-info">
-      <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-      <div class="wx-equip-item-sub">人格：${personData.原姓名} 堕落${personData.堕落值} 好感${personData.好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
-    </div>
-    ${comboBtn}
-    <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
-    <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button>
-  </div>`;
-}
-      // 普通饰品
-      const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
-      const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
-      rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
-        <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
-        ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
-      </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
+    Object.entries(accs).forEach(([n, d])=>{
+      if (n.includes('人格果冻')) {
+        const isCombined = d.组合状态 && typeof d.组合状态 === 'object' && !d.组合状态.已使用;
+        const isUsed = d.组合状态?.已使用 === true;
+        const personData = d.人格数据 || {
+          原姓名: d.原姓名 || '未知',
+          堕落值: d.堕落值 || 0,
+          好感度: d.好感度 || 0
+        };
+        let injectInfo = '';
+        if (d.组合状态?.空壳名称) {
+          injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${d.组合状态.空壳名称}</span>`;
+        }
+        const bonus = Object.entries(d.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
+        const comboBtn = isUsed
+          ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
+          : (d.组合状态 && !isUsed)
+            ? `<button class="wx-good-btn" data-uncombine="${d.组合状态.空壳名称}" data-target="${n}">解除组合</button>`
+            : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
+        rows += `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
+          <div class="wx-equip-item-info">
+            <div class="wx-equip-item-name">${n}${d.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
+            <div class="wx-equip-item-sub">人格：${personData.原姓名} 堕落${personData.堕落值} 好感${personData.好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
+          </div>
+          ${comboBtn}
+          <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
+          <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button>
+        </div>`;
+      } else {
+        // 普通饰品
+        const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
+        const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
+        rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
+          <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
+          ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
+        </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
+      }
     });
     if (rows) { html+=`<div class="wx-goods-list" style="margin-bottom:10px">${rows}</div>`; any=true; }
     else if (filter==='equip') { html+='<div class="wx-empty">无装备类物品</div>'; any=true; }
@@ -3652,42 +3653,41 @@ if (n.includes('人格果冻')) {
     else if (filter==='kungfu') { html+='<div class="wx-empty">无武功秘籍</div>'; any=true; }
   }
   if (so) {
-    const rows=Object.entries(other).map(([n,item])=>{
+    const rows=Object.entries(other).map(([n, item])=>{
       // 空壳特殊处理
-if (n.includes('空壳')) {
-  const isCombined = item.组合状态 && typeof item.组合状态 === 'object' && !item.组合状态.已使用;
-  const isUsed = item.组合状态?.已使用 === true;
-  // 兼容读取
-  const shellData = item.空壳数据 || {
-    原姓名: item.原姓名 || '未知',
-    性别: item.性别 || '女',
-    等级: item.等级 || 1,
-    属性: item.属性 || {},
-    基本功: item.基本功 || {},
-    领悟功法: item.领悟功法 || [],
-    持久状态: item.持久状态 || [],
-    最近交集: item.最近交集 || '被提取人格',
-    堕落值: item.堕落值 ?? 0
-  };
-  let injectInfo = '';
-  if (item.组合状态?.果冻名称) {
-    injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.果冻名称}</span>`;
-  }
-  const comboBtn = isUsed
-    ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
-    : (item.组合状态 && !isUsed)
-      ? `<button class="wx-good-btn" data-uncombine="${n}" data-target="${item.组合状态.果冻名称}">解除组合</button>`
-      : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
-  return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
-    <div class="wx-equip-item-info">
-      <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-      <div class="wx-equip-item-sub">原：${shellData.原姓名} 等级${shellData.等级} 堕落${shellData.堕落值}</div>
-    </div>
-    ${comboBtn}
-    <button class="wx-good-btn" data-viewshell="${n}">查看</button>
-    <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="其他类">丢弃</button>
-  </div>`;
-}
+      if (n.includes('空壳')) {
+        const isCombined = item.组合状态 && typeof item.组合状态 === 'object' && !item.组合状态.已使用;
+        const isUsed = item.组合状态?.已使用 === true;
+        const shellData = item.空壳数据 || {
+          原姓名: item.原姓名 || '未知',
+          性别: item.性别 || '女',
+          等级: item.等级 || 1,
+          属性: item.属性 || {},
+          基本功: item.基本功 || {},
+          领悟功法: item.领悟功法 || [],
+          持久状态: item.持久状态 || [],
+          最近交集: item.最近交集 || '被提取人格',
+          堕落值: item.堕落值 ?? 0
+        };
+        let injectInfo = '';
+        if (item.组合状态?.果冻名称) {
+          injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.果冻名称}</span>`;
+        }
+        const comboBtn = isUsed
+          ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
+          : (item.组合状态 && !isUsed)
+            ? `<button class="wx-good-btn" data-uncombine="${n}" data-target="${item.组合状态.果冻名称}">解除组合</button>`
+            : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
+        return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
+          <div class="wx-equip-item-info">
+            <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
+            <div class="wx-equip-item-sub">原：${shellData.原姓名} 等级${shellData.等级} 堕落${shellData.堕落值}</div>
+          </div>
+          ${comboBtn}
+          <button class="wx-good-btn" data-viewshell="${n}">查看</button>
+          <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="其他类">丢弃</button>
+        </div>`;
+      }
       // 普通其他类
       const lbl={回血:'回血',回内:'回内',回状态:'解状态'}[item.类型||'']||item.类型||'';
       const valTxt=(item.类型==='回血'||item.类型==='回内')&&item.回复数值?`+${item.回复数值}`:'';
