@@ -8087,76 +8087,15 @@ window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
     const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
     if (!shell || shell.类型 !== '空壳') return { ok: false, msg: `「${shellName}」不是有效的空壳` };
     if (!jelly || jelly.类型 !== '人格果冻') return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
-    if (shell.组合状态?.果冻名称 !== jellyName || jelly.组合状态?.空壳名称 !== shellName) {
-      return { ok: false, msg: '空壳和果冻尚未组合，请先组合' };
-    }
+    if (shell.组合状态 || jelly.组合状态) return { ok: false, msg: '空壳或果冻已被组合，请先解除组合' };
     if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) {
-      return { ok: false, msg: '空壳或果冻已使用，无法再次应用' };
+      return { ok: false, msg: '空壳或果冻已用于生成角色，不能再次组合' };
     }
     
-    const shellData = shell.空壳数据;
-    const personData = jelly.人格数据;
-    const isSamePerson = shellData.原姓名 === personData.原姓名;
-    const newDep = isSamePerson ? shellData.堕落值 : Math.floor((shellData.堕落值 + personData.堕落值) / 2);
-    
-    // 生成队友
-    const newCharKey = shellData.原姓名;
-    let finalKey = newCharKey;
-    let counter = 1;
-    while (data.stat_data.我方队友[finalKey]) {
-      finalKey = `${newCharKey}${counter}`;
-      counter++;
-    }
-    
-    const newChar = {
-      基础信息: {
-        姓名: isSamePerson ? shellData.原姓名 : `${shellData.原姓名}（${personData.原姓名}）`,
-        性别: shellData.性别 || '女',
-        等级: shellData.等级 || 1,
-        称号: '',
-        经验值: 0,
-        下一级所需经验: 0,
-      },
-      核心状态: {
-        血量: { 当前: 0, 上限: 0 },
-        内力: { 当前: 0, 上限: 0 },
-        状态列表: [],
-      },
-      属性: shellData.属性 || {},
-      基本功加点: {
-        点数: 0,
-        基本功: shellData.基本功 || {},
-      },
-      领悟功法: shellData.领悟功法 || [],
-      主运内功: '',
-      装备: { 主武器: null, 饰品: [null, null] },
-      持久状态: shellData.持久状态 || [],
-      是否参战: true,
-      堕落度: newDep,
-      好感度: personData.好感度,
-      $组合来源: { // 存储原始道具数据，用于解除组合
-        空壳名称: shellName,
-        果冻名称: jellyName,
-        空壳数据: JSON.parse(JSON.stringify(shellData)),
-        果冻数据: JSON.parse(JSON.stringify(personData)),
-      }
-    };
-    
-    data.stat_data.我方队友[finalKey] = newChar;
-    
-    // 标记道具为“已使用”（保留道具但不可再组合）
-    shell.组合状态 = { 果冻名称: jellyName, 已使用: true };
-    jelly.组合状态 = { 空壳名称: shellName, 已使用: true };
-    
-    const playerName = getPlayerName(data);
-    appendOpRecord(data, aiMsgId, `${playerName} 应用组合「${shellName}」和「${jellyName}」，生成队友「${newChar.基础信息.姓名}」`);
+    shell.组合状态 = { 果冻名称: jellyName };
+    jelly.组合状态 = { 空壳名称: shellName };
     await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-    
-    // 生成快捷回复
-    const quickText = `我将 ${jellyName} 注入了 ${shellName} 中，${newChar.基础信息.姓名} 诞生了。`;
-    _setQuickReply(quickText);
-    
-    return { ok: true, msg: `成功生成队友「${newChar.基础信息.姓名}」` };
+    return { ok: true, msg: `「${shellName}」和「${jellyName}」已组合` };
   } catch(e) {
     return { ok: false, msg: e.message };
   }
