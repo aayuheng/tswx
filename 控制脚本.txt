@@ -7973,8 +7973,6 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
     const npc = isAlly ? data.stat_data.我方队友[charKey] : data.stat_data?.角色?.[charKey];
     if (!npc) return { ok: false, msg: `角色「${charKey}」不存在` };
     if (npc.性别 !== '女') return { ok: false, msg: '仅女性角色可提取人格' };
-    // 允许肉便器提取（移除拦截）
-    // if (npc.持久状态?.includes('肉便器')) return { ok: false, msg: '肉便器无法被提取人格' };
 
     const name = npc.姓名 || charKey;
     const shellName = `空壳（${name}）`;
@@ -7983,7 +7981,7 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
     if (!playerItems.其他类) playerItems.其他类 = {};
     if (!playerItems.饰品类) playerItems.饰品类 = {};
 
-    // ── 生成空壳（含堕落值） ──
+    // ── 生成空壳数据 ──
     const shellData = {
       原姓名: name,
       性别: npc.性别,
@@ -7993,14 +7991,16 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
       领悟功法: npc.领悟功法 || [],
       持久状态: npc.持久状态 || [],
       最近交集: npc.最近交集 || '被提取人格',
-      堕落值: npc.堕落度 ?? 0   // ★ 空壳也保存堕落值
+      堕落值: npc.堕落度 ?? 0
     };
 
+    // ★ 空壳写入（完整结构）
     playerItems.其他类[shellName] = {
-      类型: '空壳',
       数量: 1,
-      组合状态: null,
+      类型: '其他',
+      描述: `${name}的肉体空壳`,
       空壳数据: JSON.parse(JSON.stringify(shellData)),
+      // 扁平字段（兼容旧 UI）
       原姓名: shellData.原姓名,
       性别: shellData.性别,
       等级: shellData.等级,
@@ -8010,39 +8010,43 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
       持久状态: shellData.持久状态,
       最近交集: shellData.最近交集,
       堕落值: shellData.堕落值,
-      描述: `${name}的肉体空壳`
+      强度值: 60,
+      回复数值: 0,
+      成功概率: 100,
     };
 
-    // ── 生成果冻（含堕落值） ──
+    // ── 生成果冻数据 ──
     const jellyData = {
       原姓名: name,
       堕落值: npc.堕落度 ?? 0,
       好感度: npc.好感度 ?? 0
     };
+    const randBonus = {
+      力量: Math.floor(Math.random() * 3) + 1,
+      速度: Math.floor(Math.random() * 3) + 1,
+      防御力: Math.floor(Math.random() * 3) + 1,
+      内功修为: Math.floor(Math.random() * 3) + 1,
+      身法: Math.floor(Math.random() * 3) + 1,
+      血量值: Math.floor(Math.random() * 150) + 50,
+      内力值: Math.floor(Math.random() * 120) + 40
+    };
+
+    // ★ 果冻写入（完整结构）
     playerItems.饰品类[jellyName] = {
-      类型: '人格果冻',
       佩戴要求: {},
-      增幅效果: {
-        力量: Math.floor(Math.random() * 3) + 1,
-        速度: Math.floor(Math.random() * 3) + 1,
-        防御力: Math.floor(Math.random() * 3) + 1,
-        内功修为: Math.floor(Math.random() * 3) + 1,
-        身法: Math.floor(Math.random() * 3) + 1,
-        血量值: Math.floor(Math.random() * 150) + 50,
-        内力值: Math.floor(Math.random() * 120) + 40
-      },
+      增幅效果: randBonus,
       组合状态: null,
       人格数据: JSON.parse(JSON.stringify(jellyData)),
       原姓名: jellyData.原姓名,
       堕落值: jellyData.堕落值,
-      好感度: jellyData.好感度
+      好感度: jellyData.好感度,
+      强度值: Math.floor(Math.random() * 20) + 40,
+      其他特效: `包含${name}的人格数据（堕落值${jellyData.堕落值}，好感度${jellyData.好感度}）可装备，可注入空壳`
     };
 
-    // ── 删除原角色（仅当是队友时才移除，角色保留） ──
+    // ── 删除队友（如果是队友）──
     if (isAlly) {
       delete data.stat_data.我方队友[charKey];
-    } else {
-      // 角色保留，不做删除
     }
 
     const playerName = getPlayerName(data);
