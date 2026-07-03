@@ -3585,7 +3585,7 @@ function buildItemsPanel(charKey, char) {
     // 饰品（包括人格果冻）
     Object.entries(accs).forEach(([n,d])=>{
 if (n.includes('人格果冻')) {
-  const isCombined = d.组合状态 !== null;
+  const isCombined = d.组合状态 && d.组合状态.空壳名称;
   const isUsed = d.组合状态?.已使用 === true;
   const personData = d.人格数据 || {
     原姓名: d.原姓名 || '未知',
@@ -3635,7 +3635,7 @@ if (n.includes('人格果冻')) {
     const rows=Object.entries(other).map(([n,item])=>{
       // 空壳特殊处理
       if (n.includes('空壳')) {
-  const isCombined = item.组合状态 !== null;
+  const isCombined = item.组合状态 && item.组合状态.果冻名称;
   const isUsed = item.组合状态?.已使用 === true;
   // ---- 兼容新旧格式 ----
   const shellData = item.空壳数据 || {
