@@ -2830,41 +2830,58 @@ async function loadState(retries=3){
 }
 // ── 修正持久状态对应的堕落值（肉便器强制1000，玩物设为300保底） ──
 async function _ensureDepravityByStatus() {
-  if (!_state?.角色) return;
+  if (!_state) return;
   const Mvu = window.parent?.Mvu;
   if (!Mvu) return;
   const lastId = window.parent.getLastMessageId?.();
   if (lastId == null) return;
   
   const data = await Mvu.getMvuData({ type: 'message', message_id: lastId });
-  if (!data?.stat_data?.角色) return;
+  if (!data?.stat_data) return;
 
   let changed = false;
-  for (const [key, npc] of Object.entries(data.stat_data.角色)) {
-    if (npc.性别 !== '女') continue;
-    const persistent = npc.持久状态 || [];
-    const currentDepravity = npc.堕落度 ?? 0;
-    let targetDepravity = currentDepravity;
-
-    // 1. 肉便器：强制锁定 1000
-    if (persistent.includes('肉便器')) {
-      targetDepravity = 1000;
+  
+  // ── 处理角色 ──
+  if (data.stat_data.角色) {
+    for (const [key, npc] of Object.entries(data.stat_data.角色)) {
+      if (npc.性别 !== '女') continue;
+      const persistent = npc.持久状态 || [];
+      const current = npc.堕落度 ?? 0;
+      let target = current;
+      if (persistent.includes('肉便器') && current < 1000) {
+        target = 1000;
+      } else if (persistent.includes('玩物') && current < 300) {
+        target = 300;
+      }
+      if (target !== current) {
+        npc.堕落度 = target;
+        changed = true;
+      }
     }
-    // 2. 玩物：仅当小于 300 时设为 300（保底）
-    else if (persistent.includes('玩物') && currentDepravity < 300) {
-      targetDepravity = 300;
-    }
-
-    if (targetDepravity !== currentDepravity) {
-      npc.堕落度 = targetDepravity;
-      changed = true;
-      console.log(`[修正] ${key} 堕落度 ${currentDepravity} → ${targetDepravity}（持久状态：${persistent.join(', ')}）`);
+  }
+  
+  // ── 处理队友 ──
+  if (data.stat_data.我方队友) {
+    for (const [key, ally] of Object.entries(data.stat_data.我方队友)) {
+      if (ally.性别 !== '女') continue;
+      const persistent = ally.持久状态 || [];
+      const current = ally.堕落度 ?? 0;
+      let target = current;
+      if (persistent.includes('肉便器') && current < 1000) {
+        target = 1000;
+      } else if (persistent.includes('玩物') && current < 300) {
+        target = 300;
+      }
+      if (target !== current) {
+        ally.堕落度 = target;
+        changed = true;
+      }
     }
   }
 
   if (changed) {
     await Mvu.replaceMvuData(data, { type: 'message', message_id: lastId });
-    // 重新加载状态更新界面
+    // 刷新本地状态
     const newRes = await callParent('WX_GET_STATE');
     if (newRes?.ok) {
       _state = newRes.stat_data;

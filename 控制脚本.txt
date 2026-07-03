@@ -6352,6 +6352,8 @@ window.parent.WX_MODIFY_FALLEN = async ({ charKey, delta }) => {
     const newVal = Math.max(0, old + delta);
     char.堕落度 = newVal;
     await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
+    // ── 触发保底检查 ──
+    await window.parent.WX_ENSURE_DEPRAVITY_BY_STATUS();
     return { ok: true, old, new: newVal };
   } catch(e) { return { ok: false, msg: e.message }; }
 };
@@ -8154,13 +8156,18 @@ window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
       是否参战: true,
       堕落度: depravity,
       好感度: jellyData.好感度 || 0,
-      $组合来源: {
-        空壳名称: shellName,
-        果冻名称: jellyName,
-        空壳数据: JSON.parse(JSON.stringify(shellData)),
-        果冻数据: JSON.parse(JSON.stringify(jellyData))
-      }
-    };
+  $组合来源: {
+    空壳名称: shellName,
+    果冻名称: jellyName,
+    空壳数据: JSON.parse(JSON.stringify(shellData)),
+    果冻数据: JSON.parse(JSON.stringify({
+      原姓名: jellyData.原姓名,
+      堕落值: jellyData.堕落值,
+      好感度: jellyData.好感度,
+      增幅效果: jelly.增幅效果  // 保存增幅效果
+    }))
+  }
+};
 
     shell.组合状态.已使用 = true;
     jelly.组合状态.已使用 = true;
@@ -8197,26 +8204,26 @@ window.parent.WX_UNCOMBINE = async ({ charKey }) => {
       描述: `${空壳数据.原姓名}的肉体空壳`
     };
     
-    if (!data.stat_data.玩家.物品.饰品类) data.stat_data.玩家.物品.饰品类 = {};
-    delete data.stat_data.玩家.物品.饰品类[果冻名称];
-    data.stat_data.玩家.物品.饰品类[果冻名称] = {
-      类型: '人格果冻',
-      佩戴要求: {},
-      增幅效果: {
-        力量: Math.floor(Math.random() * 3) + 1,
-        速度: Math.floor(Math.random() * 3) + 1,
-        防御力: Math.floor(Math.random() * 3) + 1,
-        内功修为: Math.floor(Math.random() * 3) + 1,
-        身法: Math.floor(Math.random() * 3) + 1,
-        血量值: Math.floor(Math.random() * 150) + 50,
-        内力值: Math.floor(Math.random() * 120) + 40,
-      },
-      组合状态: null,
-      人格数据: JSON.parse(JSON.stringify(果冻数据)),
-      原姓名: 果冻数据.原姓名,
-      堕落值: 果冻数据.堕落值,
-      好感度: 果冻数据.好感度
-    };
+if (!data.stat_data.玩家.物品.饰品类) data.stat_data.玩家.物品.饰品类 = {};
+delete data.stat_data.玩家.物品.饰品类[果冻名称];
+data.stat_data.玩家.物品.饰品类[果冻名称] = {
+  类型: '人格果冻',
+  佩戴要求: {},
+  增幅效果: source.果冻数据.增幅效果 || {  // 使用保存的增幅效果
+    力量: Math.floor(Math.random() * 3) + 1,
+    速度: Math.floor(Math.random() * 3) + 1,
+    防御力: Math.floor(Math.random() * 3) + 1,
+    内功修为: Math.floor(Math.random() * 3) + 1,
+    身法: Math.floor(Math.random() * 3) + 1,
+    血量值: Math.floor(Math.random() * 150) + 50,
+    内力值: Math.floor(Math.random() * 120) + 40,
+  },
+  组合状态: null,
+  人格数据: JSON.parse(JSON.stringify(source.果冻数据)),
+  原姓名: source.果冻数据.原姓名,
+  堕落值: source.果冻数据.堕落值,
+  好感度: source.果冻数据.好感度
+};
     
     const playerName = getPlayerName(data);
     appendOpRecord(data, aiMsgId, `${playerName} 解除了组合，从「${charKey}」中排泄出了 ${果冻名称}，并恢复了 ${空壳名称}`);
@@ -8235,24 +8242,47 @@ window.parent.WX_UNCOMBINE = async ({ charKey }) => {
 window.parent.WX_ENSURE_DEPRAVITY_BY_STATUS = async () => {
   try {
     const { Mvu, data, aiMsgId } = await getLatestAiData();
-    if (!data?.stat_data?.角色) return { ok: true, changed: false };
+    if (!data?.stat_data) return { ok: true, changed: false };
     let changed = false;
-    for (const [key, npc] of Object.entries(data.stat_data.角色)) {
-      if (npc.性别 !== '女') continue;
-      const persistent = npc.持久状态 || [];
-      const current = npc.堕落度 ?? 0;
-      let target = current;
-      if (persistent.includes('肉便器') && current < 1000) {
-        target = 1000;
-      } else if (persistent.includes('玩物') && current < 300) {
-        target = 300;
-      }
-      if (target !== current) {
-        npc.堕落度 = target;
-        changed = true;
-        console.log(`[保底] ${key} 堕落度 ${current}→${target}`);
+    
+    // ── 处理角色 ──
+    if (data.stat_data.角色) {
+      for (const [key, npc] of Object.entries(data.stat_data.角色)) {
+        if (npc.性别 !== '女') continue;
+        const persistent = npc.持久状态 || [];
+        const current = npc.堕落度 ?? 0;
+        let target = current;
+        if (persistent.includes('肉便器') && current < 1000) {
+          target = 1000;
+        } else if (persistent.includes('玩物') && current < 300) {
+          target = 300;
+        }
+        if (target !== current) {
+          npc.堕落度 = target;
+          changed = true;
+        }
       }
     }
+    
+    // ── 处理队友 ──
+    if (data.stat_data.我方队友) {
+      for (const [key, ally] of Object.entries(data.stat_data.我方队友)) {
+        if (ally.性别 !== '女') continue;
+        const persistent = ally.持久状态 || [];
+        const current = ally.堕落度 ?? 0;
+        let target = current;
+        if (persistent.includes('肉便器') && current < 1000) {
+          target = 1000;
+        } else if (persistent.includes('玩物') && current < 300) {
+          target = 300;
+        }
+        if (target !== current) {
+          ally.堕落度 = target;
+          changed = true;
+        }
+      }
+    }
+    
     if (changed) {
       await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
     }
