@@ -7978,57 +7978,59 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
     const jellyName = `人格果冻（${name}）`;
     const playerItems = data.stat_data.玩家.物品 || {};
     
-    // 生成空壳
-    playerItems.其他类[shellName] = {
-    类型: '空壳',
-    数量: 1,
-    组合状态: null,
-    空壳数据: {
-     原姓名: name,
-     性别: npc.性别,
-     等级: npc.基础信息?.等级 || 1,
-     属性: npc.属性 || {},
-     基本功: npc.基本功加点?.基本功 || {},
-     领悟功法: npc.领悟功法 || [],
-     持久状态: npc.持久状态 || [],
-     最近交集: npc.最近交集 || '被提取人格'
-  },
-  // ✅ 扁平字段（100%复制）
-  原姓名: name,
-  性别: npc.性别,
-  等级: npc.基础信息?.等级 || 1,
-  属性: npc.属性 || {},
-  基本功: npc.基本功加点?.基本功 || {},
-  领悟功法: npc.领悟功法 || [],
-  持久状态: npc.持久状态 || [],
-  最近交集: npc.最近交集 || '被提取人格',
-  描述: `${name}的肉体空壳`
-};
+    // 初始化分类
+    if (!playerItems.其他类) playerItems.其他类 = {};
+    if (!playerItems.饰品类) playerItems.饰品类 = {};
 
-// 生成果冻
-playerItems.饰品类[jellyName] = {
-  类型: '人格果冻',
-  佩戴要求: {},
-  增幅效果: {
-    力量: Math.floor(Math.random() * 3) + 1,
-    速度: Math.floor(Math.random() * 3) + 1,
-    防御力: Math.floor(Math.random() * 3) + 1,
-    内功修为: Math.floor(Math.random() * 3) + 1,
-    身法: Math.floor(Math.random() * 3) + 1,
-    血量值: Math.floor(Math.random() * 150) + 50,
-    内力值: Math.floor(Math.random() * 120) + 40
-  },
-  组合状态: null,
-  人格数据: {
-    原姓名: name,
-    堕落值: npc.堕落度 ?? 0,
-    好感度: npc.好感度 ?? 0
-  },
-  // ✅ 扁平字段（100%复制）
-  原姓名: name,
-  堕落值: npc.堕落度 ?? 0,
-  好感度: npc.好感度 ?? 0
-};
+    // ── 生成空壳（嵌套 + 扁平双保险） ──
+    playerItems.其他类[shellName] = {
+      类型: '空壳',
+      数量: 1,
+      组合状态: null,
+      空壳数据: {
+        原姓名: name,
+        性别: npc.性别,
+        等级: npc.基础信息?.等级 || 1,
+        属性: npc.属性 || {},
+        基本功: npc.基本功加点?.基本功 || {},
+        领悟功法: npc.领悟功法 || [],
+        持久状态: npc.持久状态 || [],
+        最近交集: npc.最近交集 || '被提取人格'
+      },
+      原姓名: name,
+      性别: npc.性别,
+      等级: npc.基础信息?.等级 || 1,
+      属性: npc.属性 || {},
+      基本功: npc.基本功加点?.基本功 || {},
+      领悟功法: npc.领悟功法 || [],
+      持久状态: npc.持久状态 || [],
+      最近交集: npc.最近交集 || '被提取人格',
+      描述: `${name}的肉体空壳`
+    };
+
+    // ── 生成果冻（嵌套 + 扁平双保险，自带增幅） ──
+    playerItems.饰品类[jellyName] = {
+      类型: '人格果冻',
+      佩戴要求: {},
+      增幅效果: {
+        力量: Math.floor(Math.random() * 3) + 1,
+        速度: Math.floor(Math.random() * 3) + 1,
+        防御力: Math.floor(Math.random() * 3) + 1,
+        内功修为: Math.floor(Math.random() * 3) + 1,
+        身法: Math.floor(Math.random() * 3) + 1,
+        血量值: Math.floor(Math.random() * 150) + 50,
+        内力值: Math.floor(Math.random() * 120) + 40
+      },
+      组合状态: null,
+      人格数据: {
+        原姓名: name,
+        堕落值: npc.堕落度 ?? 0,
+        好感度: npc.好感度 ?? 0
+      },
+      原姓名: name,
+      堕落值: npc.堕落度 ?? 0,
+      好感度: npc.好感度 ?? 0
+    };
     
     // 删除原角色
     if (isAlly) {
@@ -8046,7 +8048,52 @@ playerItems.饰品类[jellyName] = {
   }
 };
 
-// ── 2. 组合空壳与果冻 ────────────────────────────────────
+// ── 2. 组合空壳与果冻（道具层面）────────────────────────
+window.parent.WX_COMBINE_SHELL_JELLY = async ({ shellName, jellyName }) => {
+  try {
+    const { Mvu, data, aiMsgId } = await getLatestAiData();
+    const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
+    const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
+    if (!shell || shell.类型 !== '空壳') return { ok: false, msg: `「${shellName}」不是有效的空壳` };
+    if (!jelly || jelly.类型 !== '人格果冻') return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
+    if (shell.组合状态 || jelly.组合状态) return { ok: false, msg: '空壳或果冻已被组合' };
+    if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) {
+      return { ok: false, msg: '空壳或果冻已用于生成角色，不能再次组合' };
+    }
+    
+    shell.组合状态 = { 果冻名称: jellyName };
+    jelly.组合状态 = { 空壳名称: shellName };
+    await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
+    return { ok: true, msg: `「${shellName}」和「${jellyName}」已组合` };
+  } catch(e) {
+    return { ok: false, msg: e.message };
+  }
+};
+
+// ── 3. 解除组合（道具层面）─────────────────────────────
+window.parent.WX_UNCOMBINE_SHELL_JELLY = async ({ shellName, jellyName }) => {
+  try {
+    const { Mvu, data, aiMsgId } = await getLatestAiData();
+    const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
+    const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
+    if (!shell || shell.类型 !== '空壳') return { ok: false, msg: `「${shellName}」不是有效的空壳` };
+    if (!jelly || jelly.类型 !== '人格果冻') return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
+    if (shell.组合状态?.果冻名称 !== jellyName || jelly.组合状态?.空壳名称 !== shellName) {
+      return { ok: false, msg: '这两个物品并未组合' };
+    }
+    if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) {
+      return { ok: false, msg: '已用于生成角色，无法解除' };
+    }
+    shell.组合状态 = null;
+    jelly.组合状态 = null;
+    await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
+    return { ok: true, msg: `已解除组合` };
+  } catch(e) {
+    return { ok: false, msg: e.message };
+  }
+};
+
+// ── 4. 应用组合（生成队友）─────────────────────────────
 window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
   try {
     const { Mvu, data, aiMsgId } = await getLatestAiData();
@@ -8054,7 +8101,7 @@ window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
     const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
     if (!shell) return { ok: false, msg: `「${shellName}」不是有效的空壳` };
     if (!jelly) return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
-    if (!shell.组合状态 || !jelly.组合状态) return { ok: false, msg: '空壳和果冻尚未组合' };
+    if (!shell.组合状态 || !jelly.组合状态) return { ok: false, msg: '空壳和果冻尚未组合，请先组合' };
     if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) {
       return { ok: false, msg: '已使用过了' };
     }
@@ -8062,15 +8109,13 @@ window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
     const shellData = shell.空壳数据 || {};
     const jellyData = jelly.人格数据 || {};
     const name = shellData.原姓名 || jellyData.原姓名 || '未知';
-    const finalKey = name;
     
-    // 检查是否有同名队友
-    if (data.stat_data.我方队友[finalKey]) {
-      return { ok: false, msg: `队友「${finalKey}」已存在，不能重复生成` };
+    if (data.stat_data.我方队友[name]) {
+      return { ok: false, msg: `队友「${name}」已存在，不能重复生成` };
     }
     
     // 生成队友
-    data.stat_data.我方队友[finalKey] = {
+    data.stat_data.我方队友[name] = {
       基础信息: {
         姓名: name,
         性别: shellData.性别 || '女',
@@ -8115,51 +8160,6 @@ window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
   }
 };
 
-// ── 3. 解除组合（道具层面）─────────────────────────────
-window.parent.WX_UNCOMBINE_SHELL_JELLY = async ({ shellName, jellyName }) => {
-  try {
-    const { Mvu, data, aiMsgId } = await getLatestAiData();
-    const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
-    const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
-    if (!shell || shell.类型 !== '空壳') return { ok: false, msg: `「${shellName}」不是有效的空壳` };
-    if (!jelly || jelly.类型 !== '人格果冻') return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
-    if (shell.组合状态?.果冻名称 !== jellyName || jelly.组合状态?.空壳名称 !== shellName) {
-      return { ok: false, msg: '这两个物品并未组合' };
-    }
-    if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) {
-      return { ok: false, msg: '已用于生成角色，无法解除' };
-    }
-    shell.组合状态 = null;
-    jelly.组合状态 = null;
-    await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-    return { ok: true, msg: `已解除组合` };
-  } catch(e) {
-    return { ok: false, msg: e.message };
-  }
-};
-
-// ── 4. 应用组合（生成队友）─────────────────────────────
-window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
-  try {
-    const { Mvu, data, aiMsgId } = await getLatestAiData();
-    const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
-    const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
-    if (!shell || shell.类型 !== '空壳') return { ok: false, msg: `「${shellName}」不是有效的空壳` };
-    if (!jelly || jelly.类型 !== '人格果冻') return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
-    if (shell.组合状态 || jelly.组合状态) return { ok: false, msg: '空壳或果冻已被组合，请先解除组合' };
-    if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) {
-      return { ok: false, msg: '空壳或果冻已用于生成角色，不能再次组合' };
-    }
-    
-    shell.组合状态 = { 果冻名称: jellyName };
-    jelly.组合状态 = { 空壳名称: shellName };
-    await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-    return { ok: true, msg: `「${shellName}」和「${jellyName}」已组合` };
-  } catch(e) {
-    return { ok: false, msg: e.message };
-  }
-};
-
 // ── 5. 解除组合（从队友身上排泄）───────────────────────
 window.parent.WX_UNCOMBINE = async ({ charKey }) => {
   try {
@@ -8171,19 +8171,20 @@ window.parent.WX_UNCOMBINE = async ({ charKey }) => {
     
     const { 空壳名称, 果冻名称, 空壳数据, 果冻数据 } = source;
     
-    // 删除队友
     delete data.stat_data.我方队友[charKey];
     
-    // 恢复空壳（如果物品栏已存在同名，则覆盖）
     if (!data.stat_data.玩家.物品.其他类) data.stat_data.玩家.物品.其他类 = {};
     data.stat_data.玩家.物品.其他类[空壳名称] = {
       类型: '空壳',
       数量: 1,
       组合状态: null,
       空壳数据: JSON.parse(JSON.stringify(空壳数据)),
+      原姓名: 空壳数据.原姓名,
+      性别: 空壳数据.性别,
+      等级: 空壳数据.等级,
+      描述: `${空壳数据.原姓名}的肉体空壳`
     };
     
-    // 恢复果冻
     if (!data.stat_data.玩家.物品.饰品类) data.stat_data.玩家.物品.饰品类 = {};
     delete data.stat_data.玩家.物品.饰品类[果冻名称];
     data.stat_data.玩家.物品.饰品类[果冻名称] = {
@@ -8200,13 +8201,15 @@ window.parent.WX_UNCOMBINE = async ({ charKey }) => {
       },
       组合状态: null,
       人格数据: JSON.parse(JSON.stringify(果冻数据)),
+      原姓名: 果冻数据.原姓名,
+      堕落值: 果冻数据.堕落值,
+      好感度: 果冻数据.好感度
     };
     
     const playerName = getPlayerName(data);
     appendOpRecord(data, aiMsgId, `${playerName} 解除了组合，从「${charKey}」中排泄出了 ${果冻名称}，并恢复了 ${空壳名称}`);
     await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
     
-    // 生成快捷回复
     const quickText = `我将 ${果冻名称} 从 ${charKey} 的身体中排泄了出来，${空壳名称} 恢复了原状。`;
     _setQuickReply(quickText);
     
