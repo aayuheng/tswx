@@ -164,7 +164,7 @@ const KUNGFU_LIB = {
     类别:         '绝学',
     消耗内力:     3000,
     基础效果值:   500,
-    属性附加影响: '内功底蕴',
+    属性附加影响: '内功修为',
     伤害浮动:     [0.85, 2.25],
     命中率:       0.9,
     冷却:         [4, 0],
@@ -292,7 +292,7 @@ const KUNGFU_LIB = {
     类别:         '绝学',
     消耗内力:     100,
     基础效果值:   105,
-    属性附加影响: '内功底蕴',
+    属性附加影响: '内功修为',
     伤害浮动:     [0.85, 1.15],
     命中率:       0.9,
     冷却:         [0, 0],
@@ -7979,44 +7979,56 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
     const playerItems = data.stat_data.玩家.物品 || {};
     
     // 生成空壳
-    if (!playerItems.其他类) playerItems.其他类 = {};
     playerItems.其他类[shellName] = {
-      类型: '空壳',
-      数量: 1,
-      组合状态: null,
-      空壳数据: {
-        原姓名: name,
-        性别: npc.性别,
-        等级: npc.基础信息?.等级 || 1,
-        属性: npc.属性 || {},
-        基本功: npc.基本功加点?.基本功 || {},
-        领悟功法: npc.领悟功法 || [],
-        持久状态: npc.持久状态 || [],
-        最近交集: npc.最近交集 || '被提取人格'
-      }
-    };
-    
-    // 生成果冻
-    if (!playerItems.饰品类) playerItems.饰品类 = {};
-    playerItems.饰品类[jellyName] = {
-      类型: '人格果冻',
-      佩戴要求: {},
-      增幅效果: {
-        力量: Math.floor(Math.random() * 3) + 1,
-        速度: Math.floor(Math.random() * 3) + 1,
-        防御力: Math.floor(Math.random() * 3) + 1,
-        内功修为: Math.floor(Math.random() * 3) + 1,
-        身法: Math.floor(Math.random() * 3) + 1,
-        血量值: Math.floor(Math.random() * 150) + 50,
-        内力值: Math.floor(Math.random() * 120) + 40
-      },
-      组合状态: null,
-      人格数据: {
-        原姓名: name,
-        堕落值: npc.堕落度 ?? 0,
-        好感度: npc.好感度 ?? 0
-      }
-    };
+    类型: '空壳',
+    数量: 1,
+    组合状态: null,
+    空壳数据: {
+     原姓名: name,
+     性别: npc.性别,
+     等级: npc.基础信息?.等级 || 1,
+     属性: npc.属性 || {},
+     基本功: npc.基本功加点?.基本功 || {},
+     领悟功法: npc.领悟功法 || [],
+     持久状态: npc.持久状态 || [],
+     最近交集: npc.最近交集 || '被提取人格'
+  },
+  // ✅ 扁平字段（100%复制）
+  原姓名: name,
+  性别: npc.性别,
+  等级: npc.基础信息?.等级 || 1,
+  属性: npc.属性 || {},
+  基本功: npc.基本功加点?.基本功 || {},
+  领悟功法: npc.领悟功法 || [],
+  持久状态: npc.持久状态 || [],
+  最近交集: npc.最近交集 || '被提取人格',
+  描述: `${name}的肉体空壳`
+};
+
+// 生成果冻
+playerItems.饰品类[jellyName] = {
+  类型: '人格果冻',
+  佩戴要求: {},
+  增幅效果: {
+    力量: Math.floor(Math.random() * 3) + 1,
+    速度: Math.floor(Math.random() * 3) + 1,
+    防御力: Math.floor(Math.random() * 3) + 1,
+    内功修为: Math.floor(Math.random() * 3) + 1,
+    身法: Math.floor(Math.random() * 3) + 1,
+    血量值: Math.floor(Math.random() * 150) + 50,
+    内力值: Math.floor(Math.random() * 120) + 40
+  },
+  组合状态: null,
+  人格数据: {
+    原姓名: name,
+    堕落值: npc.堕落度 ?? 0,
+    好感度: npc.好感度 ?? 0
+  },
+  // ✅ 扁平字段（100%复制）
+  原姓名: name,
+  堕落值: npc.堕落度 ?? 0,
+  好感度: npc.好感度 ?? 0
+};
     
     // 删除原角色
     if (isAlly) {
@@ -8035,22 +8047,69 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
 };
 
 // ── 2. 组合空壳与果冻 ────────────────────────────────────
-window.parent.WX_COMBINE_SHELL_JELLY = async ({ shellName, jellyName }) => {
+window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
   try {
     const { Mvu, data, aiMsgId } = await getLatestAiData();
     const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
     const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
-    if (!shell || shell.类型 !== '空壳') return { ok: false, msg: `「${shellName}」不是有效的空壳` };
-    if (!jelly || jelly.类型 !== '人格果冻') return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
-    if (shell.组合状态 || jelly.组合状态) return { ok: false, msg: '空壳或果冻已被组合，请先解除组合' };
+    if (!shell) return { ok: false, msg: `「${shellName}」不是有效的空壳` };
+    if (!jelly) return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
+    if (!shell.组合状态 || !jelly.组合状态) return { ok: false, msg: '空壳和果冻尚未组合' };
     if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) {
-      return { ok: false, msg: '空壳或果冻已用于生成角色，不能再次组合' };
+      return { ok: false, msg: '已使用过了' };
     }
     
-    shell.组合状态 = { 果冻名称: jellyName };
-    jelly.组合状态 = { 空壳名称: shellName };
+    const shellData = shell.空壳数据 || {};
+    const jellyData = jelly.人格数据 || {};
+    const name = shellData.原姓名 || jellyData.原姓名 || '未知';
+    const finalKey = name;
+    
+    // 检查是否有同名队友
+    if (data.stat_data.我方队友[finalKey]) {
+      return { ok: false, msg: `队友「${finalKey}」已存在，不能重复生成` };
+    }
+    
+    // 生成队友
+    data.stat_data.我方队友[finalKey] = {
+      基础信息: {
+        姓名: name,
+        性别: shellData.性别 || '女',
+        等级: shellData.等级 || 1,
+        称号: '借体重生',
+        经验值: 0,
+        下一级所需经验: 0
+      },
+      核心状态: {
+        血量: { 当前: shellData.属性?.血量值 || 100, 上限: shellData.属性?.血量值 || 100 },
+        内力: { 当前: shellData.属性?.内力值 || 50, 上限: shellData.属性?.内力值 || 50 },
+        状态列表: []
+      },
+      属性: shellData.属性 || {},
+      基本功加点: {
+        点数: 0,
+        基本功: shellData.基本功 || {}
+      },
+      领悟功法: shellData.领悟功法 || [],
+      主运内功: '',
+      装备: { 主武器: null, 饰品: [null, null] },
+      持久状态: shellData.持久状态 || [],
+      是否参战: true,
+      堕落度: jellyData.堕落值 || 0,
+      好感度: jellyData.好感度 || 0,
+      $组合来源: {
+        空壳名称: shellName,
+        果冻名称: jellyName,
+        空壳数据: JSON.parse(JSON.stringify(shellData)),
+        果冻数据: JSON.parse(JSON.stringify(jellyData))
+      }
+    };
+    
+    // 标记已使用
+    shell.组合状态.已使用 = true;
+    jelly.组合状态.已使用 = true;
+    
     await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-    return { ok: true, msg: `「${shellName}」和「${jellyName}」已组合` };
+    return { ok: true, msg: `成功生成队友「${name}」` };
   } catch(e) {
     return { ok: false, msg: e.message };
   }
