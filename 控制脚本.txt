@@ -8231,11 +8231,6 @@ window.parent.WX_UNCOMBINE = async ({ charKey }) => {
   }
 };
 
-// ── 导出人格系统函数（供UI调用） ──
-window.parent.WX_COMBINE_SHELL_JELLY   = WX_COMBINE_SHELL_JELLY;
-window.parent.WX_UNCOMBINE_SHELL_JELLY = WX_UNCOMBINE_SHELL_JELLY;
-window.parent.WX_ENSURE_DEPRAVITY_BY_STATUS = WX_ENSURE_DEPRAVITY_BY_STATUS;
-
 // ── 持久状态保底函数（新增） ──
 window.parent.WX_ENSURE_DEPRAVITY_BY_STATUS = async () => {
   try {
