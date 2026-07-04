@@ -3604,40 +3604,45 @@ function buildItemsPanel(charKey, char) {
     });
     // 饰品（包括人格果冻）
     Object.entries(accs).forEach(([n, d])=>{
-if (n.includes('人格果冻')) {
-  const p = item.人格Data || item.人格数据 || {};
-  const 原姓名 = p.原姓名 || '未知';
-  const 堕落值 = p.堕落值 ?? 0;
-  const 好感度 = p.好感度 ?? 0;
-  const isUsed = item.组合状态?.已使用 === true;
-  let injectInfo = '';
-  if (item.组合状态?.空壳名称) {
-    injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.空壳名称}</span>`;
-  }
-  const bonus = Object.entries(item.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
-  const comboBtn = isUsed
-    ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
-    : (item.组合状态 && !isUsed)
-      ? `<button class="wx-good-btn" data-uncombine="${item.组合状态.空壳名称}" data-target="${n}">解除组合</button>`
-      : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
-  return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
-    <div class="wx-equip-item-info">
-      <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-      <div class="wx-equip-item-sub">人格：${原姓名} 堕落${堕落值} 好感${好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
-    </div>
-    ${comboBtn}
-    <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
-    <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button>
-  </div>`;
-}
-        // 普通饰品
-        const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
-        const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
-        rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
-          <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
-          ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
-        </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
+      if (n.includes('人格果冻')) {
+        const item = d; // 【修复】定义 item 变量，避免 ReferenceError
+        const p = item.人格Data || item.人格数据 || {};
+        const 原姓名 = p.原姓名 || '未知';
+        const 堕落值 = p.堕落值 ?? 0;
+        const 好感度 = p.好感度 ?? 0;
+        const isUsed = item.组合状态?.已使用 === true;
+        let injectInfo = '';
+        if (item.组合状态?.空壳名称) {
+          injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.空壳名称}</span>`;
+        }
+        const bonus = Object.entries(item.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
+        const comboBtn = isUsed
+          ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
+          : (item.组合状态 && !isUsed)
+            ? `<button class="wx-good-btn" data-uncombine="${item.组合状态.空壳名称}" data-target="${n}">解除组合</button>`
+            : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
+        
+        // 【修复】使用 rows += 而不是 return，否则 HTML 无法被渲染
+        rows += `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
+          <div class="wx-equip-item-info">
+            <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
+            <div class="wx-equip-item-sub">人格：${原姓名} 堕落${堕落值} 好感${好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
+          </div>
+          ${comboBtn}
+          <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
+          <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button>
+        </div>`;
+        return; // 【修复】使用 return 仅跳过后续普通饰品的执行，类似 continue
       }
+      
+      // 普通饰品
+      const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
+      const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
+      rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
+        <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
+        ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
+      </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
+      // 【修复】删除了此处原有的多余右大括号 '}'
     });
     if (rows) { html+=`<div class="wx-goods-list" style="margin-bottom:10px">${rows}</div>`; any=true; }
     else if (filter==='equip') { html+='<div class="wx-empty">无装备类物品</div>'; any=true; }
