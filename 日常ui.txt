@@ -3700,7 +3700,7 @@ if (n.includes('空壳')) {
   if (!any) html+='<div class="wx-empty">背包空空如也</div>';
   
   // 应用组合按钮
-  const combinedShells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => it.类型 === '空壳' && it.组合状态 && !it.组合状态.已使用);
+  const combinedShells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => n.includes('空壳') && it.组合状态 && !it.组合状态.已使用);
   if (combinedShells.length) {
     html += `<div style="margin-top:12px;border-top:1px solid var(--gold-dim);padding-top:10px;text-align:center;">
       <button class="wx-npc-btn" id="wx-apply-combined">应用组合（生成队友）</button>
@@ -4170,10 +4170,12 @@ wrap.querySelectorAll('[data-viewjelly]').forEach(btn => {
 });
 
   // 应用组合（生成队友）
+// 应用组合（生成队友）
   const applyBtn = document.getElementById('wx-apply-combined');
   if (applyBtn) {
     applyBtn.addEventListener('click', () => {
-      const shells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => it.类型 === '空壳' && it.组合状态 && !it.组合状态.已使用);
+      // 统一改为用名称判断：n.includes('空壳')
+      const shells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => n.includes('空壳') && it.组合状态 && !it.组合状态.已使用);
       if (!shells.length) { showToast('没有可用的已组合空壳'); return; }
       const options = shells.map(([name, item]) => {
         const jellyName = item.组合状态.果冻名称;
