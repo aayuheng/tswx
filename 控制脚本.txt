@@ -7981,7 +7981,7 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
     if (!playerItems.其他类) playerItems.其他类 = {};
     if (!playerItems.饰品类) playerItems.饰品类 = {};
 
-    // ── 生成空壳数据 ──
+    // ── 空壳数据（完整） ──
     const shellData = {
       原姓名: name,
       性别: npc.性别,
@@ -7994,13 +7994,11 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
       堕落值: npc.堕落度 ?? 0
     };
 
-    // ★ 空壳写入（完整结构）
     playerItems.其他类[shellName] = {
       数量: 1,
       类型: '其他',
       描述: `${name}的肉体空壳`,
       空壳数据: JSON.parse(JSON.stringify(shellData)),
-      // 扁平字段（兼容旧 UI）
       原姓名: shellData.原姓名,
       性别: shellData.性别,
       等级: shellData.等级,
@@ -8013,9 +8011,10 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
       强度值: 60,
       回复数值: 0,
       成功概率: 100,
+      组合状态: null  // ← 确保有组合状态字段
     };
 
-    // ── 生成果冻数据 ──
+    // ── 果冻数据（完整） ──
     const jellyData = {
       原姓名: name,
       堕落值: npc.堕落度 ?? 0,
@@ -8031,7 +8030,6 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
       内力值: Math.floor(Math.random() * 120) + 40
     };
 
-    // ★ 果冻写入（完整结构）
     playerItems.饰品类[jellyName] = {
       佩戴要求: {},
       增幅效果: randBonus,
@@ -8044,10 +8042,8 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
       其他特效: `包含${name}的人格数据（堕落值${jellyData.堕落值}，好感度${jellyData.好感度}）可装备，可注入空壳`
     };
 
-    // ── 删除队友（如果是队友）──
-    if (isAlly) {
-      delete data.stat_data.我方队友[charKey];
-    }
+    // ── 不删除任何节点 ──
+    // 删除逻辑已完全移除
 
     const playerName = getPlayerName(data);
     appendOpRecord(data, aiMsgId, `${playerName} 提取了 ${name} 的人格，生成空壳和果冻`);
