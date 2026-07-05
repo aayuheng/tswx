@@ -7988,6 +7988,18 @@ window.parent.WX_EXTRACT_PERSONALITY = async ({ charKey }) => {
         最近交集: npc.最近交集 || '被提取人格'
       }
     };
+	
+	// 生成人体家具道具
+    if (!playerItems.其他类) playerItems.其他类 = {};
+    playerItems.其他类[shellName] = {
+      类型: '人体家具', 数量: 1, 组合状态: null,
+      空壳数据: {
+        原姓名: name, 性别: npc.性别, 等级: npc.基础信息?.等级 || 1,
+        属性: npc.属性 || {}, 基本功: npc.基本功加点?.基本功 || {},
+        领悟功法: npc.领悟功法 || [], 持久状态: npc.持久状态 || [],
+        最近交集: npc.最近交集 || '被提取人格'
+      }
+    };
     
     // 生成果冻道具
     if (!playerItems.饰品类) playerItems.饰品类 = {};
@@ -8022,8 +8034,8 @@ window.parent.WX_COMBINE_SHELL_JELLY = async ({ shellName, jellyName }) => {
     const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
     const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
     
-    // 改用名字判定，兼容没有“类型”字段的旧档
-    if (!shell || !shellName.includes('空壳')) return { ok: false, msg: `「${shellName}」不是有效的空壳` };
+    // 改用名字判定，兼容没有“类型”字段的旧档，并支持人体家具
+    if (!shell || !(shellName.includes('空壳') || shellName.includes('人体家具'))) return { ok: false, msg: `「${shellName}」不是有效的空壳或人体家具` };
     if (!jelly || !jellyName.includes('人格果冻')) return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
     
     if (shell.组合状态 || jelly.组合状态) return { ok: false, msg: '空壳或果冻已被组合，请先解除组合' };
@@ -8043,7 +8055,7 @@ window.parent.WX_UNCOMBINE_SHELL_JELLY = async ({ shellName, jellyName }) => {
     const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
     const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
     
-    if (!shell || !shellName.includes('空壳')) return { ok: false, msg: `「${shellName}」不是有效的空壳` };
+    if (!shell || !(shellName.includes('空壳') || shellName.includes('人体家具'))) return { ok: false, msg: `「${shellName}」不是有效的空壳或人体家具` };
     if (!jelly || !jellyName.includes('人格果冻')) return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
     if (shell.组合状态?.果冻名称 !== jellyName || jelly.组合状态?.空壳名称 !== shellName) return { ok: false, msg: '这两个物品并未组合' };
     if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) return { ok: false, msg: '已用于生成角色，无法解除' };
@@ -8062,13 +8074,14 @@ window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
     const shell = data.stat_data?.玩家?.物品?.其他类?.[shellName];
     const jelly = data.stat_data?.玩家?.物品?.饰品类?.[jellyName];
     
-    if (!shell || !shellName.includes('空壳')) return { ok: false, msg: `「${shellName}」不是有效的空壳` };
+    if (!shell || !(shellName.includes('空壳') || shellName.includes('人体家具'))) return { ok: false, msg: `「${shellName}」不是有效的空壳或人体家具` };
     if (!jelly || !jellyName.includes('人格果冻')) return { ok: false, msg: `「${jellyName}」不是有效的人格果冻` };
     if (shell.组合状态?.果冻名称 !== jellyName || jelly.组合状态?.空壳名称 !== shellName) return { ok: false, msg: '空壳和果冻尚未组合，请先组合' };
     if (shell.组合状态?.已使用 || jelly.组合状态?.已使用) return { ok: false, msg: '空壳或果冻已使用，无法再次应用' };
     
-    const shellData = shell.空壳数据 || shell.空壳Data;
-    const personData = jelly.人格数据 || jelly.人格Data;
+    // 兼容可能存在的不同数据字段
+    const shellData = shell.空壳数据 || shell.空壳Data || shell.家具数据 || shell.人体家具数据 || {};
+    const personData = jelly.人格数据 || jelly.人格Data || {};
     const isSamePerson = shellData.原姓名 === personData.原姓名;
     const newDep = isSamePerson ? shellData.堕落值 : Math.floor(((shellData.堕落值||0) + (personData.堕落值||0)) / 2);
     
@@ -8092,7 +8105,8 @@ window.parent.WX_APPLY_COMBINATION = async ({ shellName, jellyName }) => {
     newChar.属性 = shellData.属性 || {};
     newChar.基本功加点 = { 点数: 0, 基本功: shellData.基本功 || {} };
     newChar.领悟功法 = shellData.领悟功法 || [];
-    newChar.持久状态 = (newChar.持久状态 || []).filter(s => s !== '空壳');
+    // 移除原有的空壳或人体家具标签
+    newChar.持久状态 = (newChar.持久状态 || []).filter(s => s !== '空壳' && s !== '人体家具');
     newChar.是否参战 = true;
     newChar.堕落度 = newDep;
     newChar.好感度 = personData.好感度;
@@ -8136,7 +8150,9 @@ window.parent.WX_UNCOMBINE = async ({ charKey }) => {
     // 不删除队友，把她恢复为空壳状态并打上标签
     if (ally.基础信息) ally.基础信息.姓名 = 空壳名称;
     ally.持久状态 = ally.持久状态 || [];
-    if (!ally.持久状态.includes('空壳')) ally.持久状态.push('空壳');
+    // 保持原来的状态标签（如果原名包含人体家具，可以打人体家具标签，否则打空壳）
+    const tag = 空壳名称.includes('人体家具') ? '人体家具' : '空壳';
+    if (!ally.持久状态.includes(tag)) ally.持久状态.push(tag);
     delete ally.$组合来源;
     
     // 仅仅清空旧道具的组合状态，完全保留原有的极品增幅属性
