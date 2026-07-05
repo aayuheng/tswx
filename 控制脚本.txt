@@ -8174,6 +8174,22 @@ window.parent.WX_UNCOMBINE = async ({ charKey }) => {
 $(() => {
   console.log('[天书江湖录·控制脚本] 已启动');
   console.log(`[武功库] 共 ${ALL_KUNGFU_NAMES.length} 个武功：${ALL_KUNGFU_NAMES.join('、')}`);
+
+  // ── 修复 SillyTavern 自身 AutoComplete.js 的 MutationObserver.observe(null) 报错问题 ──
+  try {
+    const parentWin = window.parent || window;
+    const origObserve = parentWin.MutationObserver.prototype.observe;
+    parentWin.MutationObserver.prototype.observe = function(target, options) {
+      if (!target) {
+        console.warn('[天书江湖录] 拦截到非法的 MutationObserver.observe(null) 调用，已自动忽略以防止卡死。');
+        return;
+      }
+      return origObserve.call(this, target, options);
+    };
+  } catch (e) {
+    console.error('[天书江湖录] 修复 MutationObserver 失败:', e);
+  }
+
   _initTianShuOrb();
   _wxInitEngine();
 });
