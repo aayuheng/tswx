@@ -2811,6 +2811,11 @@ const STAT_KEYS_BASIC = ['拳掌','棍枪','剑','刀','暗器','内功底蕴'];
 // ══════════════════════════════════════════════
 let _state = null, _allocPending = {}, _expandedKungfu = {}, _expandedChar = {}, _activeTab = {}, _itemFilter = {};
 let _allocMul = 1;
+// 放在 let _state = null; 的下方
+function _esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 async function loadState(retries=3){
   for(let i=0;i<=retries;i++){
@@ -3637,7 +3642,7 @@ if (n.includes('人格果冻')) {
   return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
     <div class="wx-equip-item-info">
       <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-      <div class="wx-equip-item-sub">人格：${原姓名} 堕落${堕落值} 好感${好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
+      <div class="wx-equip-item-sub">人格：${_esc(原姓名)} 堕落${堕落值} 好感${好感度}${bonus?` | 增幅 ${_esc(bonus)}`:''}</div>
     </div>
     ${comboBtn}
     <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
@@ -3691,7 +3696,7 @@ if (n.includes('空壳')) {
   return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
     <div class="wx-equip-item-info">
       <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-      <div class="wx-equip-item-sub">原：${原姓名} 等级${等级} 堕落${堕落值}${功法列表.length ? ` | 功法：${功法列表.join('、')}` : ''}</div>
+      <div class="wx-equip-item-sub">原：${_esc(原姓名)} 等级${等级} 堕落${堕落值}${功法列表.length ? ` | 功法：${功法列表.map(_esc).join('、')}` : ''}</div>
     </div>
     ${comboBtn}
     <button class="wx-good-btn" data-viewshell="${n}">查看</button>
@@ -3702,7 +3707,7 @@ if (n.includes('空壳')) {
       const lbl={回血:'回血',回内:'回内',回状态:'解状态'}[item.类型||'']||item.类型||'';
       const valTxt=(item.类型==='回血'||item.类型==='回内')&&item.回复数值?`+${item.回复数值}`:'';
       return `<div class="wx-good-row">
-        <div style="flex:1;min-width:0"><div class="wx-good-name">${n}</div>${item.描述?`<div class="wx-good-sub">${item.描述}</div>`:''}</div>
+        <div style="flex:1;min-width:0"><div class="wx-good-name">${n}</div>${item.描述?`<div class="wx-good-sub">${_esc(item.描述)}</div>`:''}</div>
         <span style="font-size:10px;color:var(--text-dim);margin-right:4px">${lbl}${valTxt}</span>
         <span class="wx-good-count">×${item.数量||0}</span>
         ${item.类型==='回血'||item.类型==='回内'?`<button class="wx-good-btn" data-useitem="${n}">使用</button>`:''}
