@@ -3603,46 +3603,43 @@ function buildItemsPanel(charKey, char) {
       </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="主武器类">丢弃</button></div>`;
     });
     // 饰品（包括人格果冻）
-    Object.entries(accs).forEach(([n, d])=>{
-      if (n.includes('人格果冻')) {
-        const item = d; // 【修复】定义 item 变量，避免 ReferenceError
-        const p = item.人格Data || item.人格数据 || {};
-        const 原姓名 = p.原姓名 || '未知';
-        const 堕落值 = p.堕落值 ?? 0;
-        const 好感度 = p.好感度 ?? 0;
-        const isUsed = item.组合状态?.已使用 === true;
-        let injectInfo = '';
-        if (item.组合状态?.空壳名称) {
-          injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.空壳名称}</span>`;
-        }
-        const bonus = Object.entries(item.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
-        const comboBtn = isUsed
-          ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
-          : (item.组合状态 && !isUsed)
-            ? `<button class="wx-good-btn" data-uncombine="${item.组合状态.空壳名称}" data-target="${n}">解除组合</button>`
-            : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
-        
-        // 【修复】使用 rows += 而不是 return，否则 HTML 无法被渲染
-        rows += `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
-          <div class="wx-equip-item-info">
-            <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-            <div class="wx-equip-item-sub">人格：${原姓名} 堕落${堕落值} 好感${好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
-          </div>
-          ${comboBtn}
-          <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
-          <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button>
-        </div>`;
-        return; // 【修复】使用 return 仅跳过后续普通饰品的执行，类似 continue
+    Object.entries(accs).forEach(([n, d]) => {
+  // ---------- 果冻 ----------
+  if (n.includes('人格果冻')) {
+    // 读取人格数据（从嵌套对象，参数是 d）
+    const p = d.人格Data || d.人格数据 || {};
+    const 原姓名 = p.原姓名 || '未知';
+    const 堕落值 = p.堕落值 ?? 0;
+    const 好感度 = p.好感度 ?? 0;
+    const isUsed = d.组合状态?.已使用 === true;
+    let injectInfo = '';
+    if (d.组合状态?.空壳名称) {
+      injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${d.组合状态.空壳名称}</span>`;
+    }
+    const bonus = Object.entries(d.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
+    const comboBtn = isUsed
+      ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
+      : (d.组合状态 && !isUsed)
+        ? `<button class="wx-good-btn" data-uncombine="${d.组合状态.空壳名称}" data-target="${n}">解除组合</button>`
+        : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
+    return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
+      <div class="wx-equip-item-info">
+        <div class="wx-equip-item-name">${n}${d.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
+        <div class="wx-equip-item-sub">人格：${原姓名} 堕落${堕落值} 好感${好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
+      </div>
+      ${comboBtn}
+      <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
+      <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button>
+    </div>`;
+  }
+        // 普通饰品
+        const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
+        const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
+        rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
+          <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
+          ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
+        </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
       }
-      
-      // 普通饰品
-      const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
-      const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
-      rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
-        <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
-        ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
-      </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
-      // 【修复】删除了此处原有的多余右大括号 '}'
     });
     if (rows) { html+=`<div class="wx-goods-list" style="margin-bottom:10px">${rows}</div>`; any=true; }
     else if (filter==='equip') { html+='<div class="wx-empty">无装备类物品</div>'; any=true; }
@@ -3657,9 +3654,9 @@ function buildItemsPanel(charKey, char) {
   }
   if (so) {
     const rows=Object.entries(other).map(([n, item])=>{
-      // 空壳/人体家具特殊处理
-if (n.includes('空壳') || n.includes('人体家具')) {
-  const shellData = item.空壳Data || item.空壳数据 || item.家具数据 || item.人体家具数据 || {};
+      // 空壳特殊处理
+if (n.includes('空壳')) {
+  const shellData = item.空壳Data || item.空壳数据 || {};
   const 原姓名 = shellData.原姓名 || '未知';
   const 等级 = shellData.等级 || 1;
   const 堕落值 = shellData.堕落值 ?? 0;
@@ -3700,7 +3697,7 @@ if (n.includes('空壳') || n.includes('人体家具')) {
   if (!any) html+='<div class="wx-empty">背包空空如也</div>';
   
   // 应用组合按钮
-  const combinedShells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => (n.includes('空壳') || n.includes('人体家具')) && it.组合状态 && !it.组合状态.已使用);
+  const combinedShells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => it.类型 === '空壳' && it.组合状态 && !it.组合状态.已使用);
   if (combinedShells.length) {
     html += `<div style="margin-top:12px;border-top:1px solid var(--gold-dim);padding-top:10px;text-align:center;">
       <button class="wx-npc-btn" id="wx-apply-combined">应用组合（生成队友）</button>
@@ -4173,9 +4170,8 @@ wrap.querySelectorAll('[data-viewjelly]').forEach(btn => {
   const applyBtn = document.getElementById('wx-apply-combined');
   if (applyBtn) {
     applyBtn.addEventListener('click', () => {
-      // 统一改为用名称判断：n.includes('空壳') || n.includes('人体家具')
-      const shells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => (n.includes('空壳') || n.includes('人体家具')) && it.组合状态 && !it.组合状态.已使用);
-      if (!shells.length) { showToast('没有可用的已组合空壳或人体家具'); return; }
+      const shells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => it.类型 === '空壳' && it.组合状态 && !it.组合状态.已使用);
+      if (!shells.length) { showToast('没有可用的已组合空壳'); return; }
       const options = shells.map(([name, item]) => {
         const jellyName = item.组合状态.果冻名称;
         const jelly = _state.玩家?.物品?.饰品类?.[jellyName];
@@ -4186,7 +4182,7 @@ wrap.querySelectorAll('[data-viewjelly]').forEach(btn => {
       }).join('');
       showModal({
         title: '应用组合',
-        text: `<div style="margin-bottom:10px;color:var(--text-dim);">选择要应用的空壳/人体家具（将消耗它们和果冻，生成队友）</div>
+        text: `<div style="margin-bottom:10px;color:var(--text-dim);">选择要应用的空壳（将消耗空壳和果冻，生成队友）</div>
                <div class="wx-item-picker">${options}</div>`,
         actions: [{ label: '取消', cls: '' }]
       });
@@ -4449,7 +4445,7 @@ loadContent();
 (async function(){
   try{
     var localVer=JSON.parse(localStorage.getItem('wx_versions')||'{}');
-    var remoteVer=await fetch('https://raw.githubusercontent.com/aayuheng/tswx/main/version.json?t='+Date.now()).then(function(r){return r.json();});
+    var remoteVer=await fetch('https://raw.githubusercontent.com/bibilabu2026/tswx/main/version.json?t='+Date.now()).then(function(r){return r.json();});
     var keys=['控制脚本','日常ui','战斗ui','开场ui'];
     var hasNew=false;
     for(var i=0;i<keys.length;i++){if((localVer[keys[i]]||'')!==(remoteVer[keys[i]]||'')){hasNew=true;break;}}
@@ -4499,7 +4495,7 @@ cCat=tc;pUrl(rnd(L[tc]||L['\u57ce\u5185']));
 function res(){if(!mt&&a.paused&&cUrl)a.play().catch(function(){});document.removeEventListener('click',res);document.removeEventListener('touchstart',res);}
 document.addEventListener('click',res);document.addEventListener('touchstart',res);
 })();
-</script>
+<\/script>
 </body>
 </html>
 ```
