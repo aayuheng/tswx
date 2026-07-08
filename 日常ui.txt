@@ -191,7 +191,6 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
 .wx-status-tag.bad{border-color:hsla(0,60%,45%,0.35);color:hsl(0,55%,65%);background:hsla(0,60%,40%,0.08);
   animation:status-bad-pulse 2.5s ease-in-out infinite}
 .wx-status-tag.good{border-color:hsla(152,42%,40%,0.35);color:hsl(152,45%,58%);background:hsla(152,42%,38%,0.08)}
-.wx-status-tag.pink{border-color:hsla(340,70%,60%,0.35);color:hsl(340,70%,70%);background:hsla(340,70%,50%,0.08)}
 @keyframes status-bad-pulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 8px hsla(0,60%,45%,0.25)}}
 
 .wx-char-detail{display:none;border-top:1px solid hsla(42,68%,52%,0.08);overflow:hidden}
@@ -1157,49 +1156,13 @@ function showNpcDetail(key) {
     : _hg > 20 ? '颇有好感' : _hg > -20 ? '泛泛之交'
     : _hg > -60 ? '心存芥蒂' : '势如水火';
   const _hgHtml = `<span style="color:${_hgColor};font-size:13px;display:inline-flex;align-items:center;gap:4px"><span style="font-size:11px">${_hgIcon}</span>${_hg}<span style="font-size:11px;opacity:.7;margin-left:2px">${_hgLabel}</span></span>`;
-const isFemale = n.性别 === '女';
-let 堕落度Html = '';
-if (isFemale) {
-  const 堕落度 = n.堕落度 ?? 0;
-  let color, title;
-  if (堕落度 >= 1000) {
-    color = '#9b59b6';
-    title = '人肉便器（锁链）';
-  } else if (堕落度 >= 999) {
-    color = '#9b59b6';
-    title = '本能渴求';
-  } else if (堕落度 >= 900) {
-    color = '#6c3483';
-    title = '欲望雌兽';
-  } else if (堕落度 >= 700) {
-    color = '#8e44ad';
-    title = '纵欲之躯';
-  } else if (堕落度 >= 500) {
-    color = '#af7ac5';
-    title = '自甘堕落';
-  } else if (堕落度 >= 300) {
-    color = '#d7bde2';
-    title = '食髓知味';
-  } else if (堕落度 >= 200) {
-    color = '#f5b7b1';
-    title = '欲求不满';
-  } else if (堕落度 >= 100) {
-    color = '#f5eef8';
-    title = '初尝滋味';
-  } else {
-    color = '#f5eef8';
-    title = '纯洁无暇';
-  }
-  堕落度Html = `<span style="color:${color}">💜 ${堕落度}（${title}）</span>`;
-}
-const rows = [
-  ['性别', `<span>${n.性别||'未知'}</span>`],
-  ['等级', `<span>${n.等级||'?'}</span>`],
-  ['好感度', _hgHtml],
-  ...(isFemale ? [['堕落度', 堕落度Html]] : []),
-  ['领悟功法', kfHtml],
-  ['最近交集', `<span>${n.最近交集||'无'}</span>`],
-];
+  const rows = [
+    ['性别', `<span>${n.性别||'未知'}</span>`],
+    ['等级', `<span>${n.等级||'?'}</span>`],
+    ['好感度', _hgHtml],
+    ['领悟功法', kfHtml],
+    ['最近交集', `<span>${n.最近交集||'无'}</span>`],
+  ];
   const displayName = n.姓名 || key;
   el.innerHTML = `<div class="wx-npc-detail"><div class="wx-npc-detail-name">${displayName}</div>${key !== displayName?`<div class="wx-npc-detail-sub">${key}</div>`:''}<div class="wx-npc-detail-grid">${rows.map(([k,v]) => `<div class="wx-npc-detail-row"><div class="wx-npc-detail-key">${k}</div><div class="wx-npc-detail-val">${v}</div></div>`).join('')}</div>`
     +`<button class="wx-npc-del" title="删除无关紧要的角色以节省token" data-delkey="${key}">删除角色</button>`
@@ -2811,89 +2774,12 @@ const STAT_KEYS_BASIC = ['拳掌','棍枪','剑','刀','暗器','内功底蕴'];
 // ══════════════════════════════════════════════
 let _state = null, _allocPending = {}, _expandedKungfu = {}, _expandedChar = {}, _activeTab = {}, _itemFilter = {};
 let _allocMul = 1;
-// 放在 let _state = null; 的下方
-function _esc(s) {
-  if (!s) return '';
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
 
 async function loadState(retries=3){
   for(let i=0;i<=retries;i++){
     const res = await callParent('WX_GET_STATE');
-    if(res?.ok){ 
-      _state = res.stat_data; 
-      fixExpToNext(); 
-      await _ensureDepravityByStatus(); // 原有
-      // 新增 ↓
-      try {
-        await callParent('WX_ENSURE_DEPRAVITY_BY_STATUS');
-      } catch(e) {}
-      return; 
-    }
+    if(res?.ok){ _state = res.stat_data; fixExpToNext(); return; }
     if(i<retries) await new Promise(r=>setTimeout(r,500*(i+1)));
-  }
-}
-// ── 修正持久状态对应的堕落值（肉便器强制1000，玩物设为300保底） ──
-async function _ensureDepravityByStatus() {
-  if (!_state) return;
-  const Mvu = window.parent?.Mvu;
-  if (!Mvu) return;
-  const lastId = window.parent.getLastMessageId?.();
-  if (lastId == null) return;
-  
-  const data = await Mvu.getMvuData({ type: 'message', message_id: lastId });
-  if (!data?.stat_data) return;
-
-  let changed = false;
-  
-  // ── 处理角色 ──
-  if (data.stat_data.角色) {
-    for (const [key, npc] of Object.entries(data.stat_data.角色)) {
-      if (npc.性别 !== '女') continue;
-      const persistent = npc.持久状态 || [];
-      const current = npc.堕落度 ?? 0;
-      let target = current;
-      if (persistent.includes('肉便器') && current < 1000) {
-        target = 1000;
-      } else if (persistent.includes('玩物') && current < 300) {
-        target = 300;
-      }
-      if (target !== current) {
-        npc.堕落度 = target;
-        changed = true;
-      }
-    }
-  }
-  
-  // ── 处理队友 ──
-  if (data.stat_data.我方队友) {
-    for (const [key, ally] of Object.entries(data.stat_data.我方队友)) {
-      if (ally.性别 !== '女') continue;
-      const persistent = ally.持久状态 || [];
-      const current = ally.堕落度 ?? 0;
-      let target = current;
-      if (persistent.includes('肉便器') && current < 1000) {
-        target = 1000;
-      } else if (persistent.includes('玩物') && current < 300) {
-        target = 300;
-      }
-      if (target !== current) {
-        ally.堕落度 = target;
-        changed = true;
-      }
-    }
-  }
-
-  if (changed) {
-    await Mvu.replaceMvuData(data, { type: 'message', message_id: lastId });
-    // 刷新本地状态
-    const newRes = await callParent('WX_GET_STATE');
-    if (newRes?.ok) {
-      _state = newRes.stat_data;
-      fixExpToNext();
-      renderParty();
-      renderWorldInfo();
-    }
   }
 }
 function fixExpToNext(){
@@ -3174,7 +3060,7 @@ function renderParty() {
     });
   }
   toolbar.querySelector('.wx-money').addEventListener('click', async () => {
-    const _WX_BASE = 'https://raw.githubusercontent.com/aayuheng/tswx/main/';
+    const _WX_BASE = 'https://raw.githubusercontent.com/bibilabu2026/tswx/main/';
     const _WX_KEYS = { ctrl:'wx_ctrl_code', daily:'wx_daily_code', battle:'wx_battle_code', opening:'wx_opening_code' };
     const _WX_NAMES = { ctrl:'控制脚本', daily:'日常ui', battle:'战斗ui', opening:'开场ui' };
     const _WX_FILES = { ctrl:'控制脚本.txt', daily:'日常ui.txt', battle:'战斗ui.txt', opening:'开场ui.txt' };
@@ -3402,12 +3288,10 @@ function buildCharCard(charKey, char, isPlayer) {
       </div>
     </div>
     ${statusHtml?`<div class="wx-status-row">${statusHtml}</div>`:''}
-    ${(char.持久状态&&char.持久状态.length)?`<div class="wx-status-row">${char.持久状态.map(st=>`<span class="wx-status-tag pink">${st}</span>`).join('')}</div>`:''}
     <div class="wx-char-detail ${expanded?'open':''}">
       <div class="wx-tabs">${tabNames.map(t=>`<button class="wx-tab ${t===tab?'active':''}${t==='kungfu'&&needKfHint?' hint-kf':''}" data-t="${t}">${TABS_LABEL[t]}</button>`).join('')}</div>
       ${tabNames.map(t=>`<div class="wx-tab-panel ${t===tab?'active':''}" id="tp-${t}-${charKey}">${buildPanel(t,charKey,char,isPlayer)}</div>`).join('')}
       ${!isPlayer?`<button class="wx-kick-btn" data-kick="${charKey}">踢出队伍</button>`:''}
-      ${!isPlayer && char.$组合来源 ? `<button class="wx-kick-btn" data-uncombine-ally="${charKey}" style="border-color:hsla(0,50%,45%,0.5);color:hsl(0,55%,65%);">解除组合（排泄果冻）</button>` : ''}
     </div>`;
 
   wrap.querySelector('.wx-char-head').addEventListener('click', () => {
@@ -3598,8 +3482,7 @@ function buildItemsPanel(charKey, char) {
   if (se) {
     const wornMap=getWornMap();
     let rows='';
-    // 武器
-    Object.entries(weapons).forEach(([n, d])=>{
+    Object.entries(weapons).forEach(([n,d])=>{
       const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
       const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
       rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
@@ -3607,56 +3490,13 @@ function buildItemsPanel(charKey, char) {
         ${(b||rq)?`<div class="wx-equip-item-sub">${[b,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
       </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="主武器类">丢弃</button></div>`;
     });
-    // 饰品（包括人格果冻）
-    Object.entries(accs).forEach(([n, d])=>{
-if (n.includes('人格果冻')) {
-  // ★ 统一读取：优先嵌套，降级到扁平字段，最后从其他特效解析
-  let personData = item.人格Data || item.人格数据 || {};
-  let 原姓名 = personData.原姓名 || item.原姓名 || '未知';
-  let 堕落值 = personData.堕落值 ?? item.堕落值 ?? 0;
-  let 好感度 = personData.好感度 ?? item.好感度 ?? 0;
-  
-  // 如果所有字段都为空，尝试从其他特效解析
-  if (原姓名 === '未知' && 堕落值 === 0 && 好感度 === 0 && item.其他特效) {
-    const nameMatch = item.其他特效.match(/包含(.+?)的人格数据/);
-    if (nameMatch) 原姓名 = nameMatch[1];
-    const depMatch = item.其他特效.match(/堕落值(\d+)/);
-    if (depMatch) 堕落值 = parseInt(depMatch[1]);
-    const favMatch = item.其他特效.match(/好感度(\d+)/);
-    if (favMatch) 好感度 = parseInt(favMatch[1]);
-  }
-
-  const isCombined = item.组合状态 && typeof item.组合状态 === 'object' && !item.组合状态.已使用;
-  const isUsed = item.组合状态?.已使用 === true;
-  let injectInfo = '';
-  if (item.组合状态?.空壳名称) {
-    injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.空壳名称}</span>`;
-  }
-  const bonus = Object.entries(item.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
-  const comboBtn = isUsed
-    ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
-    : (item.组合状态 && !isUsed)
-      ? `<button class="wx-good-btn" data-uncombine="${item.组合状态.空壳名称}" data-target="${n}">解除组合</button>`
-      : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
-
-  return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
-    <div class="wx-equip-item-info">
-      <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-      <div class="wx-equip-item-sub">人格：${_esc(原姓名)} 堕落${堕落值} 好感${好感度}${bonus?` | 增幅 ${_esc(bonus)}`:''}</div>
-    </div>
-    ${comboBtn}
-    <button class="wx-good-btn" data-viewjelly="${n}">查看</button>
-    <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button>
-  </div>`;
-}
-        // 普通饰品
-        const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
-        const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
-        rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
-          <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
-          ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
-        </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
-      }
+    Object.entries(accs).forEach(([n,d])=>{
+      const wornBy=wornMap[n], b=Object.entries(d.增幅效果||{}).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' '), sp=d.其他特效||'';
+      const rq=Object.entries(d.佩戴要求||{}).filter(([,v])=>v).map(([k,v])=>`${k}≥${v}`).join(' ');
+      rows+=`<div class="wx-equip-item-row"><div class="wx-equip-item-info">
+        <div class="wx-equip-item-name">${n}${wornBy?`<span class="wx-equip-item-worn">${wornBy}装备中</span>`:''}</div>
+        ${(b||sp||rq)?`<div class="wx-equip-item-sub">${[b,sp,rq?'（<span style="color:var(--vermilion-l)">需 '+rq+'</span>）':''].filter(Boolean).join(' ')}</div>`:''}
+      </div><button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="饰品类">丢弃</button></div>`;
     });
     if (rows) { html+=`<div class="wx-goods-list" style="margin-bottom:10px">${rows}</div>`; any=true; }
     else if (filter==='equip') { html+='<div class="wx-empty">无装备类物品</div>'; any=true; }
@@ -3670,44 +3510,11 @@ if (n.includes('人格果冻')) {
     else if (filter==='kungfu') { html+='<div class="wx-empty">无武功秘籍</div>'; any=true; }
   }
   if (so) {
-    const rows=Object.entries(other).map(([n, item])=>{
-      // 空壳特殊处理
-if (n.includes('空壳')) {
-  // ★ 统一读取：优先嵌套，降级到扁平字段
-  const shellData = item.空壳Data || item.空壳数据 || {};
-  const 原姓名 = shellData.原姓名 || item.原姓名 || '未知';
-  const 等级 = shellData.等级 || item.等级 || 1;
-  const 堕落值 = shellData.堕落值 ?? item.堕落值 ?? 0;
-  const 性别 = shellData.性别 || item.性别 || '女';
-  const 功法列表 = shellData.领悟功法 || item.领悟功法 || [];
-  
-  const isCombined = item.组合状态 && typeof item.组合状态 === 'object' && !item.组合状态.已使用;
-  const isUsed = item.组合状态?.已使用 === true;
-  let injectInfo = '';
-  if (item.组合状态?.果冻名称) {
-    injectInfo = `<span style="color:var(--jade-l);font-size:11px;margin-left:6px;">已注入：${item.组合状态.果冻名称}</span>`;
-  }
-  const comboBtn = isUsed
-    ? `<button class="wx-good-btn" disabled style="opacity:0.4">已使用</button>`
-    : (item.组合状态 && !isUsed)
-      ? `<button class="wx-good-btn" data-uncombine="${n}" data-target="${item.组合状态.果冻名称}">解除组合</button>`
-      : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
-
-  return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
-    <div class="wx-equip-item-info">
-      <div class="wx-equip-item-name">${n}${item.组合状态 ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
-      <div class="wx-equip-item-sub">原：${_esc(原姓名)} 等级${等级} 堕落${堕落值}${功法列表.length ? ` | 功法：${功法列表.map(_esc).join('、')}` : ''}</div>
-    </div>
-    ${comboBtn}
-    <button class="wx-good-btn" data-viewshell="${n}">查看</button>
-    <button class="wx-good-btn del" data-discarditem="${n}" data-discardcat="其他类">丢弃</button>
-  </div>`;
-}
-      // 普通其他类
+    const rows=Object.entries(other).map(([n,item])=>{
       const lbl={回血:'回血',回内:'回内',回状态:'解状态'}[item.类型||'']||item.类型||'';
       const valTxt=(item.类型==='回血'||item.类型==='回内')&&item.回复数值?`+${item.回复数值}`:'';
       return `<div class="wx-good-row">
-        <div style="flex:1;min-width:0"><div class="wx-good-name">${n}</div>${item.描述?`<div class="wx-good-sub">${_esc(item.描述)}</div>`:''}</div>
+        <div style="flex:1;min-width:0"><div class="wx-good-name">${n}</div>${item.描述?`<div class="wx-good-sub">${item.描述}</div>`:''}</div>
         <span style="font-size:10px;color:var(--text-dim);margin-right:4px">${lbl}${valTxt}</span>
         <span class="wx-good-count">×${item.数量||0}</span>
         ${item.类型==='回血'||item.类型==='回内'?`<button class="wx-good-btn" data-useitem="${n}">使用</button>`:''}
@@ -3718,15 +3525,6 @@ if (n.includes('空壳')) {
     else if (filter==='other') { html+='<div class="wx-empty">无其他物品</div>'; any=true; }
   }
   if (!any) html+='<div class="wx-empty">背包空空如也</div>';
-  
-  // 应用组合按钮
-  const combinedShells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => it.类型 === '空壳' && it.组合状态 && !it.组合状态.已使用);
-  if (combinedShells.length) {
-    html += `<div style="margin-top:12px;border-top:1px solid var(--gold-dim);padding-top:10px;text-align:center;">
-      <button class="wx-npc-btn" id="wx-apply-combined">应用组合（生成队友）</button>
-    </div>`;
-  }
-  
   html+='</div>';
   return html;
 }
@@ -3945,7 +3743,9 @@ function bindEvents(wrap, charKey, char, isPlayer) {
       const name=btn.dataset.bookdetail;
       let kf=null; try{kf=window.parent.WX_GET_KUNGFU(name);}catch(e){}
       if(!kf){showToast('武功库中无此武功');return;}
+      // ── 分组构建详情 HTML ──
       let html='';
+      // 第一组：基本信息
       html+='<div class="wx-kf-group">';
       html+=`<div class="wx-kf-row"><span class="wx-kf-label">类别：</span>${kf.类别||'普通'}</div>`;
       if(kf.描述) html+=`<div class="wx-kf-row" style="font-size:11.5px;color:var(--text-dim);line-height:1.7">${kf.描述}</div>`;
@@ -3953,12 +3753,14 @@ function bindEvents(wrap, charKey, char, isPlayer) {
       html+=`<div class="wx-kf-row"><span class="wx-kf-label">基础效果：</span>${kf.基础效果值<1?Math.round(kf.基础效果值*100)+'%':kf.基础效果值}　<span class="wx-kf-label">命中率：</span>${Math.round(kf.命中率*100)}%</div>`;
       html+=`<div class="wx-kf-row"><span class="wx-kf-label">伤害浮动：</span>${kf.伤害浮动[0]}~${kf.伤害浮动[1]}　<span class="wx-kf-label">冷却：</span>${kf.冷却[0]}回合</div>`;
       html+='</div>';
+      // 第二组：学习门槛
       const req=Object.entries(kf.基本功要求||{}).filter(([,v])=>v);
       html+='<div class="wx-kf-group">';
       html+=`<div class="wx-kf-group-title">学习门槛</div>`;
       html+=`<div class="wx-kf-row"><span class="wx-kf-label">等级要求：</span>${kf.等级要求}</div>`;
       if(req.length) html+=`<div class="wx-kf-row"><span class="wx-kf-label">基本功要求：</span>${req.map(([k,v])=>`${k}≥${v}`).join('　')}</div>`;
       html+='</div>';
+      // 第三组：增幅与状态
       const boost=Object.entries(kf.基本功和属性增幅||{}).filter(([,v])=>v);
       const hasSt=kf.影响状态?.名称!=='无';
       if(boost.length||hasSt){
@@ -4005,6 +3807,7 @@ function bindEvents(wrap, charKey, char, isPlayer) {
             const v=parseInt(document.getElementById('wx-qty-val')?.value)||1;
             doDiscardItem(itemName,category,Math.max(1,Math.min(v,maxQty)));
           }},{label:'取消',cls:''}]});
+        // 绑定+-按钮
         setTimeout(()=>{
           const inp=document.getElementById('wx-qty-val');
           document.getElementById('wx-qty-dec')?.addEventListener('click',e=>{e.stopPropagation();if(inp)inp.value=Math.max(1,(parseInt(inp.value)||1)-1);});
@@ -4020,6 +3823,7 @@ function bindEvents(wrap, charKey, char, isPlayer) {
   // 武功展开/折叠
   wrap.querySelectorAll('[data-kungfu]').forEach(item=>{
     item.addEventListener('click', e=>{
+      // 不在按钮上触发折叠
       if(e.target.closest('.wx-kungfu-act-btn')) return;
       e.stopPropagation();
       const name=item.dataset.kungfu;
@@ -4028,6 +3832,7 @@ function bindEvents(wrap, charKey, char, isPlayer) {
       item.querySelector('.wx-kungfu-detail')?.classList.toggle('open',_expandedKungfu[charKey][name]);
     });
   });
+  // 武功详情按钮
   // 设为主运内功
   wrap.querySelectorAll('[data-setmainkf]').forEach(btn=>{
     btn.addEventListener('click', async e=>{
@@ -4048,7 +3853,7 @@ function bindEvents(wrap, charKey, char, isPlayer) {
       else showToast(res?.msg||'操作失败');
     });
   });
-  // 遗忘武功
+  // 武功遗忘
   wrap.querySelectorAll('[data-forgetkungfu]').forEach(btn=>{
     btn.addEventListener('click', e=>{
       e.stopPropagation();
@@ -4061,7 +3866,7 @@ function bindEvents(wrap, charKey, char, isPlayer) {
         }},{label:'取消',cls:''}]});
     });
   });
-  // 遗忘自创武功（跳转悟道）
+  // 自创武功遗忘（跳转悟道面板）
   wrap.querySelectorAll('[data-forgetcustom]').forEach(btn=>{
     btn.addEventListener('click', e=>{
       e.stopPropagation();
@@ -4070,7 +3875,7 @@ function bindEvents(wrap, charKey, char, isPlayer) {
         actions:[{label:'打开悟道',cls:'confirm',cb:()=>{openWdPanel();}},{label:'取消',cls:''}]});
     });
   });
-  // 武功日常使用
+  // 武功日常使用（回血/回内）
   wrap.querySelectorAll('[data-usekungfu]').forEach(btn=>{
     btn.addEventListener('click', e=>{
       e.stopPropagation();
@@ -4099,195 +3904,6 @@ function bindEvents(wrap, charKey, char, isPlayer) {
           if(res?.ok){showToast(`${res.name}已离队`);await loadState();renderParty();}
           else showToast(res?.msg||'操作失败');
         }},{label:'取消',cls:''}]});
-    });
-  });
-
-  // ═══════ 新增：人格果冻/空壳 相关事件 ═══════
-  // 组合按钮（在物品面板中）
-  wrap.querySelectorAll('[data-combine]').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      e.stopPropagation();
-      const itemName = btn.dataset.combine;
-      const items = _state.玩家?.物品 || {};
-      let shellName = null, jellyName = null;
-      if (items.其他类?.[itemName]?.类型 === '空壳') {
-        shellName = itemName;
-        const jellies = Object.entries(items.饰品类 || {}).filter(([n, it]) => it.类型 === '人格果冻' && !it.组合状态);
-        if (!jellies.length) { showToast('没有可组合的人格果冻'); return; }
-        const options = jellies.map(([name, item]) => 
-          `<div class="wx-item-pick-row" data-jelly="${name}">
-            ${name}（${item.人格数据.原姓名} 堕落${item.人格数据.堕落值}）
-          </div>`
-        ).join('');
-        showModal({
-          title: '选择人格果冻',
-          text: `<div class="wx-item-picker">${options}</div>`,
-          actions: [{ label: '取消', cls: '' }]
-        });
-        document.querySelectorAll('.wx-item-pick-row').forEach(el => {
-          el.addEventListener('click', async () => {
-            const jn = el.dataset.jelly;
-            const res = await callParent('WX_COMBINE_SHELL_JELLY', { shellName, jellyName: jn });
-            if (res?.ok) {
-              showToast(res.msg);
-              await loadState();
-              renderParty();
-              document.getElementById('wx-modal').classList.remove('show');
-            } else {
-              showToast(res?.msg || '组合失败');
-            }
-          });
-        });
-      } else if (items.饰品类?.[itemName]?.类型 === '人格果冻') {
-        jellyName = itemName;
-        const shells = Object.entries(items.其他类 || {}).filter(([n, it]) => it.类型 === '空壳' && !it.组合状态);
-        if (!shells.length) { showToast('没有可组合的空壳'); return; }
-        const options = shells.map(([name, item]) => 
-          `<div class="wx-item-pick-row" data-shell="${name}">
-            ${name}（${item.空壳数据.原姓名} 等级${item.空壳数据.等级}）
-          </div>`
-        ).join('');
-        showModal({
-          title: '选择空壳',
-          text: `<div class="wx-item-picker">${options}</div>`,
-          actions: [{ label: '取消', cls: '' }]
-        });
-        document.querySelectorAll('.wx-item-pick-row').forEach(el => {
-          el.addEventListener('click', async () => {
-            const sn = el.dataset.shell;
-            const res = await callParent('WX_COMBINE_SHELL_JELLY', { shellName: sn, jellyName });
-            if (res?.ok) {
-              showToast(res.msg);
-              await loadState();
-              renderParty();
-              document.getElementById('wx-modal').classList.remove('show');
-            } else {
-              showToast(res?.msg || '组合失败');
-            }
-          });
-        });
-      }
-    });
-  });
-
-  // 解除组合（道具层面）
-  wrap.querySelectorAll('[data-uncombine]').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      e.stopPropagation();
-      const shellName = btn.dataset.uncombine;
-      const jellyName = btn.dataset.target;
-      const res = await callParent('WX_UNCOMBINE_SHELL_JELLY', { shellName, jellyName });
-      if (res?.ok) {
-        showToast(res.msg);
-        await loadState();
-        renderParty();
-      } else {
-        showToast(res?.msg || '解除失败');
-      }
-    });
-  });
-
-  // 查看空壳详情
-wrap.querySelectorAll('[data-viewshell]').forEach(btn => {
-  btn.addEventListener('click', async e => {
-    e.stopPropagation();
-    const name = btn.dataset.viewshell;
-    const res = await callParent('WX_GET_STATE');
-    const shell = res?.stat_data?.玩家?.物品?.其他类?.[name];
-    if (!shell) { showToast('数据丢失'); return; }
-    const d = shell.空壳Data || shell.空壳数据 || {};
-    const flat = shell;
-    showModal({
-      title: `空壳：${d.原姓名 || flat.原姓名 || '未知'}`,
-      text: `等级：${d.等级 || flat.等级 || 1}<br>性别：${d.性别 || flat.性别 || '女'}<br>属性：${JSON.stringify(d.属性 || flat.属性 || {})}<br>基本功：${JSON.stringify(d.基本功 || flat.基本功 || {})}<br>功法：${(d.领悟功法 || flat.领悟功法 || []).join('、')}<br>堕落值：${d.堕落值 ?? flat.堕落值 ?? 0}`,
-      actions: [{ label: '关闭', cls: '' }]
-    });
-  });
-});
-
-  // 查看果冻详情
-wrap.querySelectorAll('[data-viewjelly]').forEach(btn => {
-  btn.addEventListener('click', async e => {
-    e.stopPropagation();
-    const name = btn.dataset.viewjelly;
-    const res = await callParent('WX_GET_STATE');
-    const jelly = res?.stat_data?.玩家?.物品?.饰品类?.[name];
-    if (!jelly) { showToast('数据丢失'); return; }
-    let p = jelly.人格Data || jelly.人格数据 || {};
-    let 原姓名 = p.原姓名 || jelly.原姓名 || '未知';
-    let 堕落值 = p.堕落值 ?? jelly.堕落值 ?? 0;
-    let 好感度 = p.好感度 ?? jelly.好感度 ?? 0;
-    // 降级到其他特效解析
-    if (原姓名 === '未知' && 堕落值 === 0 && 好感度 === 0 && jelly.其他特效) {
-      const nameMatch = jelly.其他特效.match(/包含(.+?)的人格数据/);
-      if (nameMatch) 原姓名 = nameMatch[1];
-      const depMatch = jelly.其他特效.match(/堕落值(\d+)/);
-      if (depMatch) 堕落值 = parseInt(depMatch[1]);
-      const favMatch = jelly.其他特效.match(/好感度(\d+)/);
-      if (favMatch) 好感度 = parseInt(favMatch[1]);
-    }
-    const bonus = Object.entries(jelly.增幅效果||{}).filter(([,v])=>v).map(([k,v])=>`${k}${v>0?'+':''}${v}`).join(' ');
-    showModal({
-      title: `人格果冻：${原姓名}`,
-      text: `堕落值：${堕落值}<br>好感度：${好感度}<br>增幅效果：${bonus||'无'}`,
-      actions: [{ label: '关闭', cls: '' }]
-    });
-  });
-});
-
-  // 应用组合（生成队友）
-  const applyBtn = document.getElementById('wx-apply-combined');
-  if (applyBtn) {
-    applyBtn.addEventListener('click', () => {
-      const shells = Object.entries(_state.玩家?.物品?.其他类 || {}).filter(([n, it]) => it.类型 === '空壳' && it.组合状态 && !it.组合状态.已使用);
-      if (!shells.length) { showToast('没有可用的已组合空壳'); return; }
-      const options = shells.map(([name, item]) => {
-        const jellyName = item.组合状态.果冻名称;
-        const jelly = _state.玩家?.物品?.饰品类?.[jellyName];
-        const desc = jelly ? `+ ${jelly.人格数据.原姓名}` : '（果冻丢失）';
-        return `<div class="wx-item-pick-row" data-shell="${name}" data-jelly="${jellyName}">
-          ${name} ${desc}
-        </div>`;
-      }).join('');
-      showModal({
-        title: '应用组合',
-        text: `<div style="margin-bottom:10px;color:var(--text-dim);">选择要应用的空壳（将消耗空壳和果冻，生成队友）</div>
-               <div class="wx-item-picker">${options}</div>`,
-        actions: [{ label: '取消', cls: '' }]
-      });
-      document.querySelectorAll('.wx-item-pick-row').forEach(el => {
-        el.addEventListener('click', async () => {
-          const shellName = el.dataset.shell;
-          const jellyName = el.dataset.jelly;
-          if (!confirm(`确定要应用组合「${shellName}」和「${jellyName}」吗？\n这将消耗这两件道具并生成一名新队友。`)) return;
-          const res = await callParent('WX_APPLY_COMBINATION', { shellName, jellyName });
-          if (res?.ok) {
-            showToast(res.msg);
-            await loadState();
-            renderParty();
-            document.getElementById('wx-modal').classList.remove('show');
-          } else {
-            showToast(res?.msg || '应用失败');
-          }
-        });
-      });
-    });
-  }
-
-  // 解除队友组合（排泄）
-  wrap.querySelectorAll('[data-uncombine-ally]').forEach(btn => {
-    btn.addEventListener('click', async e => {
-      e.stopPropagation();
-      const charKey = btn.dataset.uncombineAlly;
-      if (!confirm(`确定要解除「${charKey}」的组合状态吗？这将删除该角色并恢复道具。`)) return;
-      const res = await callParent('WX_UNCOMBINE', { charKey });
-      if (res?.ok) {
-        showToast(res.msg);
-        await loadState();
-        renderParty();
-      } else {
-        showToast(res?.msg || '解除失败');
-      }
     });
   });
 }
@@ -4451,16 +4067,18 @@ async function cleanOldRecords(){
   try{ await callParent('WX_CLEAN_RECORDS'); }catch(e){}
 }
 
-async function loadContent() {
+function loadContent() {
   let raw = '';
   try {
     const lastId = getLastMessageId();
     if (lastId >= 0) {
       let targetMsg = null;
+      // 方法1：用 -1 直接取最新 assistant 消息
       try {
         const msgs = getChatMessages(-1, { role: 'assistant' });
         if (msgs && msgs.length > 0) targetMsg = msgs[0];
       } catch(e) {}
+      // 方法2：从最新 ID 向前扫描
       if (!targetMsg) {
         for (let id = lastId; id >= Math.max(0, lastId - 20); id--) {
           try {
@@ -4474,30 +4092,13 @@ async function loadContent() {
   } catch(e) {}
   renderStory(raw);
   renderOptions(raw);
+  // 检测：有敌人数据更新但无战斗标签（只看</content>之后，排除思维链干扰）
   const _cIdx = raw ? raw.lastIndexOf('</content>') : -1;
   const _tail = _cIdx !== -1 ? raw.substring(_cIdx) : raw;
   const hasEnemy = /\{\s*"op"\s*:\s*"insert"\s*,\s*"path"\s*:\s*"\/敌人/.test(_tail);
   const hasZd = _tail.includes('\u003czd\u003e');
   _battleAlert = hasEnemy && !hasZd;
   if(_battleAlert) showToast('检测到敌人，但似乎未出现战斗ui，您可手动打开战斗界面', 5000);
-  // ── 解析 AI 回复中的 UpdateVariable（JSON Patch） ──────────
-  const updateVarMatch = raw.match(/<UpdateVariable>([\s\S]*?)<\/UpdateVariable>/);
-  if (updateVarMatch) {
-    try {
-      const patchMatch = updateVarMatch[1].match(/<JSONPatch>([\s\S]*?)<\/JSONPatch>/);
-      if (patchMatch) {
-        const patches = JSON.parse(patchMatch[1].trim());
-        const result = await callParent('WX_EXEC_JSON_PATCH', patches);
-        if (result?.ok) {
-          showToast(`变量更新成功（${result.changes.length}项）`);
-        } else {
-          console.warn('[变量更新] 执行失败:', result?.msg);
-        }
-      }
-    } catch(e) {
-      console.warn('[变量更新] 解析失败:', e);
-    }
-  }
   loadState().then(async()=>{ await _checkTimeRegression(); renderWorldInfo(); renderParty(); cleanOldRecords(); bgmOnContentLoad(raw); });
 }
 
