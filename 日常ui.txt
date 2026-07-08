@@ -3584,10 +3584,9 @@ function buildItemsPanel(charKey, char) {
     });
     // 饰品（包括人格果冻）
     Object.entries(accs).forEach(([n,d])=>{
-if (d.类型 === '人格果冻') {
-  const isCombined = d.组合状态 !== null;
+if (n.includes('人格果冻')) {
+  const isCombined = d.组合状态 && d.组合状态.空壳名称;
   const isUsed = d.组合状态?.已使用 === true;
-  // ---- 兼容新旧格式 ----
   const personData = d.人格数据 || {
     原姓名: d.原姓名 || '未知',
     堕落值: d.堕落值 || 0,
@@ -3603,7 +3602,7 @@ if (d.类型 === '人格果冻') {
     : isCombined
       ? `<button class="wx-good-btn" data-uncombine="${n}" data-target="${d.组合状态.空壳名称}">解除组合</button>`
       : `<button class="wx-good-btn" data-combine="${n}">组合</button>`;
-  return `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
+  rows += `<div class="wx-equip-item-row" style="${isUsed?'opacity:0.5;':''}">
     <div class="wx-equip-item-info">
       <div class="wx-equip-item-name">${n}${isCombined ? ' ✅' : ''}${isUsed ? ' (已使用)' : ''}${injectInfo}</div>
       <div class="wx-equip-item-sub">人格：${personData.原姓名} 堕落${personData.堕落值} 好感${personData.好感度}${bonus?` | 增幅 ${bonus}`:''}</div>
@@ -3635,8 +3634,8 @@ if (d.类型 === '人格果冻') {
   if (so) {
     const rows=Object.entries(other).map(([n,item])=>{
       // 空壳特殊处理
-      if (item.类型 === '空壳') {
-  const isCombined = item.组合状态 !== null;
+      if (n.includes('空壳')) {
+  const isCombined = item.组合状态 && item.组合状态.果冻名称;
   const isUsed = item.组合状态?.已使用 === true;
   // ---- 兼容新旧格式 ----
   const shellData = item.空壳数据 || {
