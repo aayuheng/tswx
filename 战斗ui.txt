@@ -2230,6 +2230,25 @@ const gA      = k  => G.actors[k];
 const aliveP  = () => G.pKeys.filter(k=>gA(k)?.alive);
 const aliveE  = () => G.eKeys.filter(k=>gA(k)?.alive);
 
+// lodash set polyfill（结算写MVU时需要）
+const _ = {
+  set: function(obj, path, value) {
+    const parts = path.split('.');
+    let current = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!current[parts[i]]) current[parts[i]] = {};
+      current = current[parts[i]];
+    }
+    current[parts[parts.length - 1]] = value;
+  }
+};
+
+// 查找角色身上的指定状态（用于“护身·防御上升”等状态共存）
+function findStatus(key, name) {
+  const sts = G.statuses[key] || [];
+  return sts.find(s => s.名称 === name);
+}
+
 // 将MVU状态列表（字符串数组或对象数组）统一转为战斗用对象格式
 function parseStatusList(list){
   if(!Array.isArray(list))return [];
@@ -2983,17 +3002,17 @@ function getAttr(key,name){
     if(lUp)v*=1+(lUp.数值||0.25);
   }
   if(name==='防御力'){
-    const dUp=sts.find(s=>s.名称==='防御上升') || findStatus('护身·防御上升');
+    const dUp = sts.find(s=>s.名称==='防御上升') || findStatus(key, '护身·防御上升');
     if(dUp)v*=1+(dUp.数值||0.2);
     const dDn=sts.find(s=>s.名称==='防御下降');
     if(dDn)v*=1-(dDn.数值||0.2);
   }
   if(name==='身法'){
-    const sUp=sts.find(s=>s.名称==='身法上升') || findStatus('护身·身法上升');
+    const sUp = sts.find(s=>s.名称==='身法上升') || findStatus(key, '护身·身法上升');
     if(sUp)v*=1+(sUp.数值||0.15);
   }
   if(name==='速度'){
-    const spUp=sts.find(s=>s.名称==='速度上升') || findStatus('护身·速度上升');;
+    const spUp = sts.find(s=>s.名称==='速度上升') || findStatus(key, '护身·速度上升');
     if(spUp)v*=1+(spUp.数值||0.1);
   }
   return Math.floor(v);
