@@ -28,6 +28,46 @@
 //      影响回合   — 0=即时, -1=无限, >0=持续回合数
 //    作用范围     — 敌方单体/敌方群体/敌方相邻/我方单体/我方群体/仅我
 // ══════════════════════════════════════════════════════
+// 确保 Lodash 可用
+if (typeof _ === 'undefined' || typeof _.get !== 'function') {
+  console.warn('[天书江湖录] Lodash 未加载，使用简易替代方案');
+  // 如果父窗口有 Lodash，借用它
+  if (typeof window.parent !== 'undefined' && window.parent._ && typeof window.parent._.get === 'function') {
+    window._ = window.parent._;
+  } else {
+    // 创建最小替代
+    window._ = {
+      get: function(obj, path, defaultValue) {
+        if (!obj || typeof obj !== 'object') return defaultValue;
+        const keys = path.split('.');
+        let result = obj;
+        for (const key of keys) {
+          if (result == null || typeof result !== 'object') return defaultValue;
+          result = result[key];
+        }
+        return result === undefined ? defaultValue : result;
+      },
+      set: function(obj, path, value) {
+        const keys = path.split('.');
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!(key in current) || typeof current[key] !== 'object') {
+            current[key] = {};
+          }
+          current = current[key];
+        }
+        current[keys[keys.length - 1]] = value;
+        return obj;
+      },
+      clamp: function(num, min, max) {
+        return Math.min(Math.max(num, min), max);
+      },
+      // 其他需要的方法可补充
+    };
+  }
+}
+
 const KUNGFU_LIB = {
 // ── 普通 ─────────────────────────────────────
 // ── 原创 ─────────────────────────────────────
