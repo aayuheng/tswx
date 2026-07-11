@@ -6639,12 +6639,16 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
   try {
     const { Mvu, data, aiMsgId } = await getLatestAiData();
     if (!data?.stat_data) return { ok: false, msg: 'stat_data 不存在' };
-    // 补全根字段（避免路径不存在的错误）
+
+    // ── 补全根字段（避免路径不存在的错误） ──
     const sd = data.stat_data;
     if (!sd.敌人) sd.敌人 = {};
     if (!sd.我方队友) sd.我方队友 = {};
     if (!sd.角色) sd.角色 = {};
-    if (!sd.世界) sd.世界 = {};    
+    if (!sd.世界) sd.世界 = {};
+    if (!sd.玩家) sd.玩家 = {}; // 如果可能也会写入玩家，但通常已存在
+    // 可根据需要添加其他根字段
+
     let changes = [];
     for (const patch of patches) {
       const { op, path, value } = patch;
