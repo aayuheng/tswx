@@ -906,6 +906,48 @@ body {
 
 <script>
 // ════════════════════════════════════════════════════════
+//  确保 Lodash (_) 可用（如果未定义则注入替代实现）
+// ════════════════════════════════════════════════════════
+if (typeof window._ === 'undefined' || typeof window._.get !== 'function') {
+  // 尝试从父窗口借用
+  if (typeof window.parent !== 'undefined' && window.parent._ && typeof window.parent._.get === 'function') {
+    window._ = window.parent._;
+    console.log('[天书江湖录·战斗] 从父窗口借用了 Lodash');
+  } else {
+    // 否则使用最小替代实现
+    window._ = {
+      get: function(obj, path, defaultValue) {
+        if (!obj || typeof obj !== 'object') return defaultValue;
+        const keys = path.split('.');
+        let result = obj;
+        for (const key of keys) {
+          if (result == null || typeof result !== 'object') return defaultValue;
+          result = result[key];
+        }
+        return result === undefined ? defaultValue : result;
+      },
+      set: function(obj, path, value) {
+        const keys = path.split('.');
+        let current = obj;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!(key in current) || typeof current[key] !== 'object') {
+            current[key] = {};
+          }
+          current = current[key];
+        }
+        current[keys[keys.length - 1]] = value;
+        return obj;
+      },
+      clamp: function(num, min, max) {
+        return Math.min(Math.max(num, min), max);
+      },
+      // 其他需要的方法可补充
+    };
+    console.log('[天书江湖录·战斗] 已注入 Lodash 替代实现');
+  }
+}
+// ════════════════════════════════════════════════════════
 //  天书江湖录 · 战斗UI  v3 — 视觉重设计
 //  注意事项：
 //   1. 运行于ST正则注入的iframe，body自然撑开高度
