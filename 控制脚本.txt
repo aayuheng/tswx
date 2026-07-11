@@ -6663,7 +6663,6 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
         '/玩家/金钱', '/玩家/持久状态',
         '/我方队友', '/角色',
         '/敌人',   // ← 添加这一行
-];
       ];
       // 路径前缀匹配（允许子路径）
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
