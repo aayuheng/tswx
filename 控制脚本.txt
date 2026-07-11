@@ -6639,7 +6639,12 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
   try {
     const { Mvu, data, aiMsgId } = await getLatestAiData();
     if (!data?.stat_data) return { ok: false, msg: 'stat_data 不存在' };
-    
+    // 补全根字段（避免路径不存在的错误）
+    const sd = data.stat_data;
+    if (!sd.敌人) sd.敌人 = {};
+    if (!sd.我方队友) sd.我方队友 = {};
+    if (!sd.角色) sd.角色 = {};
+    if (!sd.世界) sd.世界 = {};    
     let changes = [];
     for (const patch of patches) {
       const { op, path, value } = patch;
@@ -6653,6 +6658,8 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
         '/玩家/属性/力量', '/玩家/属性/速度', '/玩家/属性/防御力', '/玩家/属性/内功修为', '/玩家/属性/身法',
         '/玩家/金钱', '/玩家/持久状态',
         '/我方队友', '/角色',
+        '/敌人',   // ← 添加这一行
+];
       ];
       // 路径前缀匹配（允许子路径）
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
