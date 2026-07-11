@@ -427,6 +427,57 @@ body::after{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;opac
   transition:width .25s var(--ease-silk)}
 .wx-npc-panel.show{display:flex}
 .wx-npc-panel.expanded{width:380px}
+/* ── 奴隶列表面板 ── */
+.wx-slave-panel {
+    position: fixed; left: 0; z-index: 200; display: none;
+    width: 220px;
+    background: var(--ink-mid);
+    border: 1px solid var(--gold-dim);
+    border-radius: 0 var(--radius-l) var(--radius-l) 0;
+    box-shadow: 8px 0 40px hsla(0,0%,0%,0.5), inset -1px 0 0 hsla(42,68%,52%,0.08);
+    animation: npc-slide-in .3s var(--ease-silk);
+    overflow: hidden;
+}
+.wx-slave-panel.show { display: flex; flex-direction: column; }
+.wx-slave-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--glass-border);
+}
+.wx-slave-title {
+    font-family: 'Ma Shan Zheng', cursive;
+    font-size: 15px; color: var(--gold); letter-spacing: 2px;
+}
+.wx-slave-close {
+    width: 22px; height: 22px; border: 1px solid var(--glass-border);
+    background: transparent; color: var(--text-dim);
+    cursor: pointer; border-radius: 50%; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .2s;
+}
+.wx-slave-close:hover { border-color: var(--gold-dim); color: var(--text); }
+.wx-slave-body {
+    padding: 8px 10px; overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+.wx-slave-body::-webkit-scrollbar { width: 4px; }
+.wx-slave-body::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 2px; }
+.wx-slave-group-title {
+    font-size: 10px; color: var(--gold); letter-spacing: 2px;
+    padding: 6px 4px 4px; border-bottom: 1px solid var(--glass-border);
+    margin-top: 4px;
+}
+.wx-slave-group-title:first-child { margin-top: 0; }
+.wx-slave-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; border-bottom: 1px solid var(--glass-border);
+    font-size: 12px; color: var(--text);
+}
+.wx-slave-item:last-child { border-bottom: none; }
+.wx-slave-item-name { flex: 1; color: var(--gold-l); }
+.wx-slave-item-location { font-size: 10px; color: var(--text-dim); }
+.wx-slave-item-level { font-size: 10px; color: var(--text-dim); }
+.wx-slave-item-extra { font-size: 9px; color: var(--text-dim); opacity: .6; }
 .wx-npc-box{display:flex;min-height:0;width:100%;overflow:hidden}
 .wx-npc-left{width:170px;min-width:170px;display:flex;flex-direction:column}
 .wx-npc-header{display:flex;align-items:center;justify-content:space-between;padding:10px 10px 8px;
@@ -1081,6 +1132,119 @@ function _ensureNpcDom() {
 function closeNpcPanel() {
   _npcPanel?.classList.remove('show','expanded');
   _npcOverlay?.classList.remove('show');
+}
+
+function openSlavePanel() {
+    const existing = document.getElementById('wx-slave-panel');
+    if (existing && existing.classList.contains('show')) {
+        existing.classList.remove('show');
+        document.getElementById('wx-slave-overlay')?.classList.remove('show');
+        return;
+    }
+
+    let overlay = document.getElementById('wx-slave-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'wx-slave-overlay';
+        overlay.className = 'wx-npc-overlay';
+        overlay.addEventListener('click', closeSlavePanel);
+        document.body.appendChild(overlay);
+    }
+
+    let panel = document.getElementById('wx-slave-panel');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'wx-slave-panel';
+        panel.className = 'wx-slave-panel';
+        panel.innerHTML = `
+            <div class="wx-slave-header">
+                <span class="wx-slave-title">奴隶列表</span>
+                <button class="wx-slave-close" id="wx-slave-close">&times;</button>
+            </div>
+            <div class="wx-slave-body" id="wx-slave-body"></div>
+        `;
+        document.body.appendChild(panel);
+        panel.querySelector('#wx-slave-close').addEventListener('click', closeSlavePanel);
+    }
+
+    const targetStates = ['伴侣', '玩物', '死亡奴隶', '人体家具', '尸体玩偶', '肉便器'];
+    const allies = Object.keys(_state.我方队友 || {});
+    const slaves = [];
+
+    for (const [key, npc] of Object.entries(_state.角色 || {})) {
+        if (allies.includes(key)) continue;
+        const persistent = npc.持久状态 || [];
+        const matched = persistent.filter(st => targetStates.includes(st));
+        if (matched.length) {
+            slaves.push({
+                key,
+                name: npc.基础信息?.姓名 || key,
+                states: matched,
+                location: npc.所在地 || '未知',
+                level: npc.基础信息?.等级 || '?'
+            });
+        }
+    }
+
+    const groupOrder = ['伴侣', '玩物', '死亡奴隶', '人体家具', '尸体玩偶', '肉便器'];
+    slaves.sort((a, b) => {
+        const aIdx = groupOrder.indexOf(a.states[0]);
+        const bIdx = groupOrder.indexOf(b.states[0]);
+        return aIdx - bIdx;
+    });
+
+    const body = document.getElementById('wx-slave-body');
+    if (!slaves.length) {
+        body.innerHTML = '<div class="wx-empty">未找到符合条件的角色</div>';
+    } else {
+        let html = '';
+        let currentGroup = '';
+        for (const slave of slaves) {
+            const group = slave.states[0];
+            if (group !== currentGroup) {
+                currentGroup = group;
+                html += `<div class="wx-slave-group-title">【${group}】</div>`;
+            }
+            html += `
+                <div class="wx-slave-item">
+                    <span class="wx-slave-item-name">${slave.name}</span>
+                    <span class="wx-slave-item-location">📍 ${slave.location}</span>
+                    <span class="wx-slave-item-level">Lv.${slave.level}</span>
+                    ${slave.states.length > 1 ? `<span class="wx-slave-item-extra">+${slave.states.slice(1).join('、')}</span>` : ''}
+                </div>
+            `;
+        }
+        body.innerHTML = html;
+    }
+
+    const btn = document.querySelector('#wx-slave-open');
+    const rect = btn?.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const gap = 4;
+    panel.style.top = '';
+    panel.style.bottom = '';
+    if (rect) {
+        const spaceBelow = vh - rect.bottom - gap;
+        const spaceAbove = rect.top - gap;
+        if (spaceBelow >= 300 || spaceBelow >= spaceAbove) {
+            panel.style.top = `${rect.bottom + gap}px`;
+            panel.style.maxHeight = `${spaceBelow}px`;
+        } else {
+            panel.style.bottom = `${vh - rect.top + gap}px`;
+            panel.style.maxHeight = `${spaceAbove}px`;
+        }
+    } else {
+        panel.style.top = '80px';
+        panel.style.maxHeight = `${vh - 100}px`;
+    }
+
+    overlay.classList.add('show');
+    panel.classList.add('show');
+}
+
+function closeSlavePanel() {
+    document.getElementById('wx-slave-overlay')?.classList.remove('show');
+    document.getElementById('wx-slave-panel')?.classList.remove('show');
 }
 function openNpcPanel() {
   _ensureNpcDom();
@@ -3131,13 +3295,14 @@ function renderParty() {
   const _wdLv = _state?.玩家?.基础信息?.等级||1;
   const toolbar = document.createElement('div');
   toolbar.className = 'wx-toolbar';
-  toolbar.innerHTML = `<button class="wx-npc-btn" id="wx-npc-open">角色 · 交集</button><button class="wx-npc-btn" id="wx-daily-open">每日机缘</button><button class="wx-npc-btn" id="wx-jh-open">江湖事迹</button><button class="wx-npc-btn" id="wx-dz-open">打坐调息</button>${_wdLv>=10?'<button class="wx-npc-btn" id="wx-wd-open">悟道</button>':''}${_battleAlert?'<button class="wx-battle-alert" id="wx-battle-go"><svg viewBox="0 0 24 24"><path d="M14.5 3L12 1L9.5 3L6.5 2L5.5 5L2.5 5.5L3 8.5L1 11L3 13.5L2 16.5L5 17.5L5.5 20.5L8.5 20L11 22L13.5 20L16.5 21L17.5 18L20.5 17.5L20 14.5L22 12L20 9.5L21 6.5L18 5.5L17.5 2.5Z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>开始战斗</button>':''}<div class="wx-money"><svg class="wx-money-icon" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><rect x="10" y="10" width="4" height="4" rx="0.5"/><line x1="12" y1="2" x2="12" y2="10"/><line x1="12" y1="14" x2="12" y2="22"/><line x1="2" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="22" y2="12"/></svg><span class="wx-money-label">金钱</span><span class="wx-money-val">${moneyStr}</span></div>`;
+  toolbar.innerHTML = `<button class="wx-npc-btn" id="wx-npc-open">角色 · 交集</button><button class="wx-npc-btn" id="wx-daily-open">每日机缘</button><button class="wx-npc-btn" id="wx-jh-open">江湖事迹</button><button class="wx-npc-btn" id="wx-dz-open">打坐调息</button><button class="wx-npc-btn" id="wx-slave-open">奴隶列表</button>${_wdLv>=10?'<button class="wx-npc-btn" id="wx-wd-open">悟道</button>':''}${_battleAlert?'<button class="wx-battle-alert" id="wx-battle-go"><svg viewBox="0 0 24 24"><path d="M14.5 3L12 1L9.5 3L6.5 2L5.5 5L2.5 5.5L3 8.5L1 11L3 13.5L2 16.5L5 17.5L5.5 20.5L8.5 20L11 22L13.5 20L16.5 21L17.5 18L20.5 17.5L20 14.5L22 12L20 9.5L21 6.5L18 5.5L17.5 2.5Z"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>开始战斗</button>':''}<div class="wx-money"><svg class="wx-money-icon" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><rect x="10" y="10" width="4" height="4" rx="0.5"/><line x1="12" y1="2" x2="12" y2="10"/><line x1="12" y1="14" x2="12" y2="22"/><line x1="2" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="22" y2="12"/></svg><span class="wx-money-label">金钱</span><span class="wx-money-val">${moneyStr}</span></div>`;
   c.appendChild(toolbar);
   toolbar.querySelector('#wx-npc-open').addEventListener('click', openNpcPanel);
   toolbar.querySelector('#wx-daily-open').addEventListener('click', openDailyPanel);
   toolbar.querySelector('#wx-jh-open').addEventListener('click', openJhPanel);
   toolbar.querySelector('#wx-dz-open').addEventListener('click', openDzPanel);
   toolbar.querySelector('#wx-wd-open')?.addEventListener('click', openWdPanel);
+  toolbar.querySelector('#wx-slave-open').addEventListener('click', openSlavePanel);  // 新增
   if(_battleAlert){
     toolbar.querySelector('#wx-battle-go').addEventListener('click', async()=>{
       _battleAlert=false;

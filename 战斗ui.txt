@@ -470,6 +470,8 @@ body {
 .kf-type.绝学 { background:hsla(355,62%,44%,0.12); color:hsl(355,65%,60%); border:1px solid hsla(355,62%,44%,0.25); }
 .kf-type.轻功 { background:hsla(220,52%,52%,0.12); color:hsl(220,60%,65%); border:1px solid hsla(220,52%,52%,0.25); }
 .kf-type.内功 { background:hsla(158,42%,36%,0.12); color:hsl(158,50%,55%); border:1px solid hsla(158,42%,36%,0.25); }
+.kf-type.奴隶神功 { background: linear-gradient(135deg, hsla(280, 70%, 50%, 0.2), hsla(320, 70%, 40%, 0.2)); color: hsl(280, 80%, 65%); border: 1px solid hsla(280, 70%, 50%, 0.4); text-shadow: 0 0 8px hsla(280, 70%, 50%, 0.2);
+}
 .kf-type.自创 { background:hsla(190,50%,60%,0.12); color:hsl(190,70%,78%); border:1px solid hsla(190,50%,60%,0.25); }
 .kf-mp  { font-size:11px; color:hsl(220,60%,65%); text-align:center; }
 .kf-cd  { font-size:11px; text-align:center; }
@@ -2904,7 +2906,61 @@ for (const stName of persistentAlly) {
       }
     }
   }
+// 读取炼制次数
+let baihaiCount = 0, miqingCount = 0;
+try {
+    const baihaiFn = window.parent?.WX_GET_BAIHAI_COUNT;
+    if (typeof baihaiFn === 'function') {
+        const result = await baihaiFn();
+        baihaiCount = result || 0;
+    }
+    const miqingFn = window.parent?.WX_GET_MIQING_COUNT;
+    if (typeof miqingFn === 'function') {
+        const result = await miqingFn();
+        miqingCount = result || 0;
+    }
+} catch(e) {
+    console.warn('[战斗UI] 读取炼制次数失败:', e);
+}
+G.baihaiCount = baihaiCount;
+G.miqingCount = miqingCount;
 
+// 挂载光环状态（摧花/采花领域）
+for (const key of allKeys()) {
+    const c = gA(key);
+    if (!c || !c.alive) continue;
+
+    const hasCuiHua = (c.kungfu || []).includes('摧花领域');
+    const hasCaiHua = (c.kungfu || []).includes('采花领域');
+
+    if (hasCuiHua) {
+        const isFemale = (c.gender === '女' || c.gender === 'female');
+        if (isFemale) {
+            const atkBonus = 0.05 * G.baihaiCount;
+            const defReduction = 0.03 * G.baihaiCount;
+            if (atkBonus > 0) {
+                applyStatus(key, { 名称: '摧花·受击加成', 数值: atkBonus, 剩余回合: -1, 来源: '摧花领域' });
+            }
+            if (defReduction > 0 && key !== 'player') {
+                applyStatus(key, { 名称: '摧花·对主减伤', 数值: defReduction, 剩余回合: -1, 来源: '摧花领域' });
+            }
+        }
+    }
+
+    if (hasCaiHua) {
+        const isSlave = (G.statuses[key] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称));
+        if (isSlave) {
+            const dmgBonus = 0.1 * G.miqingCount;
+            const dmgReduction = 0.05 * G.miqingCount;
+            if (dmgBonus > 0) {
+                applyStatus(key, { 名称: '采花·增伤', 数值: dmgBonus, 剩余回合: -1, 来源: '采花领域' });
+            }
+            if (dmgReduction > 0) {
+                applyStatus(key, { 名称: '采花·减伤', 数值: dmgReduction, 剩余回合: -1, 来源: '采花领域' });
+            }
+        }
+    }
+}
   renderAll();
   G.phase='atb';
   atbLoop();
@@ -2977,6 +3033,7 @@ function buildActor(key,type,data){
   return {
     key, type, name:info.姓名||key,
     title:info.称号||'',
+    gender: info.性别 || '男',
     level:lv,
     hp:{cur:Math.min(core.血量?.当前??hpMax,hpMax),max:hpMax},
     mp:{cur:Math.min(core.内力?.当前??mpMax,mpMax),max:mpMax},
@@ -3002,6 +3059,9 @@ function getAttr(key,name){
     if(lUp)v*=1+(lUp.数值||0.25);
   }
   if(name==='防御力'){
+    // 恨之牺牲·降防 绝对优先
+    const hateSt = sts.find(s => s.名称 === '恨之牺牲·降防');
+    if (hateSt) return 0;
     const dUp = sts.find(s=>s.名称==='防御上升') || findStatus(key, '护身·防御上升');
     if(dUp)v*=1+(dUp.数值||0.2);
     const dDn=sts.find(s=>s.名称==='防御下降');
@@ -3544,7 +3604,60 @@ function getWeaponSkill(key){
   }
   return getNormalAtkBskill(key);
 }
+function _applySlaveBonuses(atkKey, tgtKey, dmg) {
+    if (dmg <= 0) return dmg;
 
+    if ((G.statuses[atkKey] || []).some(s => s.名称 === '伴侣·献身')) {
+        dmg = Math.floor(dmg * 1.2);
+    }
+    if ((G.statuses[tgtKey] || []).some(s => s.名称 === '伴侣·献身')) {
+        dmg = Math.floor(dmg * 0.8);
+    }
+
+    const playAtk = (G.statuses[atkKey] || []).find(s => s.名称 === '玩物·攻击上升');
+    if (playAtk) {
+        dmg = Math.floor(dmg * (1 + (playAtk.数值 || 0.2)));
+    }
+
+    const playDef = (G.statuses[tgtKey] || []).find(s => s.名称 === '玩物·防御上升');
+    if (playDef) {
+        dmg = Math.floor(dmg * (1 - (playDef.数值 || 0.2)));
+    }
+
+    const isFemaleTgt = (gA(tgtKey)?.gender === '女' || gA(tgtKey)?.gender === 'female');
+    if (isFemaleTgt) {
+        const cuiAtk = (G.statuses[atkKey] || []).find(s => s.名称 === '摧花·受击加成');
+        if (cuiAtk) {
+            dmg = Math.floor(dmg * (1 + cuiAtk.数值));
+        }
+    }
+
+    const isFemaleAtk = (gA(atkKey)?.gender === '女' || gA(atkKey)?.gender === 'female');
+    if (isFemaleAtk && tgtKey === 'player') {
+        const cuiDef = (G.statuses[atkKey] || []).find(s => s.名称 === '摧花·对主减伤');
+        if (cuiDef) {
+            dmg = Math.floor(dmg * (1 - cuiDef.数值));
+        }
+    }
+
+    const isAtkSlave = (G.statuses[atkKey] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称));
+    if (isAtkSlave) {
+        const caiAtk = (G.statuses[atkKey] || []).find(s => s.名称 === '采花·增伤');
+        if (caiAtk) {
+            dmg = Math.floor(dmg * (1 + caiAtk.数值));
+        }
+    }
+
+    const isTgtSlave = (G.statuses[tgtKey] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称));
+    if (isTgtSlave) {
+        const caiDef = (G.statuses[tgtKey] || []).find(s => s.名称 === '采花·减伤');
+        if (caiDef) {
+            dmg = Math.floor(dmg * (1 - caiDef.数值));
+        }
+    }
+
+    return Math.max(0, dmg);
+}
 // ── 普攻 ─────────────────────────────────────────────────
 async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
   const atk=gA(atkKey),tgt=gA(tgtKey); if(!atk||!tgt){if(!skipEndTurn)endTurn(atkKey);return;}
@@ -3594,6 +3707,7 @@ async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
   const _xhmg=(G.statuses[atkKey]||[]).find(s=>s.名称==='血海魔功');
   if(_xhmg)dmg*=1+(_xhmg.数值||0.5);
   dmg=Math.floor(dmg);
+  dmg = _applySlaveBonuses(atkKey, tgtKey, dmg);
   if(_tgtDef)playSfx(SFX.defend); else {const _wt=BSKILL_TO_WTYPE[wSkill]||'fist';playSfx(getAtkSfx(_wt));}
   // 斗转星移（优先于反弹/反击）
   let _dzxyHit=false;
@@ -4079,6 +4193,161 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
       return;
     }
   }
+  // ── 血祭大法 ──（新增）
+  if (kfName === '血祭大法') {
+      if (atk.mp.cur < kf.消耗内力) {
+          log(`${atk.name} 内力不足`, 'l-miss');
+          return;
+      }
+      atk.mp.cur -= kf.消耗内力;
+      updateCard(atkKey);
+
+      const teammates = G.pKeys.filter(k => k !== atkKey && gA(k)?.alive);
+      const targetStates = ['伴侣', '死亡奴隶', '玩物'];
+      let totalDrain = 0, drainedCount = 0;
+
+      for (const k of teammates) {
+          const sts = G.statuses[k] || [];
+          if (sts.some(s => targetStates.includes(s.名称))) {
+              const c = gA(k);
+              const drain = Math.min(Math.floor(c.hp.cur / 2), 2000);
+              if (drain > 0) {
+                  c.hp.cur -= drain;
+                  if (c.hp.cur < 0) c.hp.cur = 0;
+                  totalDrain += drain;
+                  drainedCount++;
+                  updateCard(k);
+                  if (c.hp.cur <= 0) { c.alive = false; updateCard(k); }
+              }
+          }
+      }
+
+      if (drainedCount === 0) {
+          log(`${atk.name} 施展血祭大法，但没有符合条件的队友可以献祭`, 'l-miss');
+          endTurn(atkKey);
+          return;
+      }
+
+      const damage = totalDrain * 2;
+      log(`${atk.name} 血祭 ${drainedCount} 名队友，共抽取 ${totalDrain} 气血，对 ${tgt.name} 造成 ${damage} 真实伤害！`, 'l-crit');
+      floatDmg(q(`card-${atkKey}`), `血祭${drainedCount}人`, 'hsl(0,80%,50%)', '16px');
+
+      tgt.hp.cur = Math.max(0, tgt.hp.cur - damage);
+      updateCard(tgtKey);
+      floatDmg(q(`card-${tgtKey}`), `-${damage}`, 'hsl(0,0%,90%)', '20px');
+      G.battleLog.push({ t: 'BLOOD_SACRIFICE', a: atk.name, v: tgt.name, d: damage });
+
+      if (tgt.hp.cur <= 0) {
+          tgt.alive = false;
+          updateCard(tgtKey);
+          log(`${tgt.name} 倒下了！`, 'l-sys');
+          grantKillExp(tgtKey);
+      }
+
+      if ((kf.冷却?.[0] || 0) > 0) {
+          G.cds[atkKey] = G.cds[atkKey] || {};
+          G.cds[atkKey][kfName] = kf.冷却[0] + 1;
+      }
+      
+      endTurn(atkKey);
+      return;
+  }
+
+  // ── 爱之牺牲 ──（新增）
+  if (kfName === '爱之牺牲') {
+      atk.hp.cur = 1;
+      updateCard(atkKey);
+      log(`${atk.name} 献祭自身，施展爱之牺牲！`, 'l-sys');
+      floatDmg(q(`card-${atkKey}`), '爱之牺牲', 'hsl(0,70%,50%)', '16px');
+
+      const targets = aliveP();
+      for (const tKey of targets) {
+          const target = gA(tKey);
+          if (!target || !target.alive) continue;
+          applyStatus(tKey, { 名称: '爱之牺牲·护盾', 数值: 0, 剩余回合: -1, 来源: '爱之牺牲' });
+          log(`${target.name} 获得爱之护盾！`, 'l-buff');
+          floatDmg(q(`card-${tKey}`), '护盾', 'hsl(200,70%,60%)', '14px');
+      }
+
+      if ((kf.冷却?.[0] || 0) > 0) {
+          G.cds[atkKey] = G.cds[atkKey] || {};
+          G.cds[atkKey][kfName] = kf.冷却[0] + 1;
+      }
+      
+      endTurn(atkKey);
+      return;
+  }
+
+  // ── 恨之牺牲 ──（新增）
+  if (kfName === '恨之牺牲') {
+      atk.hp.cur = 1;
+      updateCard(atkKey);
+      log(`${atk.name} 献祭自身，施展恨之牺牲！`, 'l-sys');
+      floatDmg(q(`card-${atkKey}`), '恨之牺牲', 'hsl(0,70%,50%)', '16px');
+
+      const enemies = aliveE();
+      for (const eKey of enemies) {
+          const enemy = gA(eKey);
+          if (!enemy || !enemy.alive) continue;
+          applyStatus(eKey, { 名称: '恨之牺牲·降防', 数值: 1, 剩余回合: 10, 来源: '恨之牺牲' });
+          log(`${enemy.name} 防御归零（10回合）！`, 'l-buff');
+          floatDmg(q(`card-${eKey}`), '防0', 'hsl(210,80%,50%)', '16px');
+      }
+
+      if ((kf.冷却?.[0] || 0) > 0) {
+          G.cds[atkKey] = G.cds[atkKey] || {};
+          G.cds[atkKey][kfName] = kf.冷却[0] + 1;
+      }
+      
+      endTurn(atkKey);
+      return;
+  }
+
+  // ── 辅助特判（伴侣献身/玩物侍奉/玩物守护） ──（新增）
+  if (['伴侣献身', '玩物侍奉', '玩物守护'].includes(kfName)) {
+      if (atk.mp.cur < kf.消耗内力) {
+          log(`${atk.name} 内力不足`, 'l-miss');
+          endTurn(atkKey);
+          return;
+      }
+      const tgt = gA(tgtKey);
+      if (!tgt || !tgt.alive) {
+          log(`目标不存在`, 'l-miss');
+          endTurn(atkKey);
+          return;
+      }
+      const targetSts = G.statuses[tgtKey] || [];
+      const needTargetState = kf.需要目标状态 || [];
+      if (needTargetState.length && !needTargetState.every(st => targetSts.some(s => s.名称 === st))) {
+          log(`${tgt.name} 没有「${needTargetState.join('、')}」，无法施加效果`, 'l-miss');
+          endTurn(atkKey);
+          return;
+      }
+      atk.mp.cur -= kf.消耗内力;
+      updateCard(atkKey);
+
+      if (kfName === '伴侣献身') {
+          applyStatus(tgtKey, { 名称: '伴侣·献身', 数值: 0, 剩余回合: 3, 来源: kfName });
+          log(`${atk.name} 对 ${tgt.name} 施加「伴侣·献身」，伤害×1.2，受伤×0.8，持续3回合`, 'l-buff');
+          floatDmg(q(`card-${tgtKey}`), '伴侣献身', 'hsl(330,70%,60%)', '16px');
+      } else if (kfName === '玩物侍奉') {
+          applyStatus(tgtKey, { 名称: '玩物·攻击上升', 数值: 0.2, 剩余回合: 3, 来源: kfName });
+          log(`${atk.name} 对 ${tgt.name} 施加「玩物·攻击上升」，攻击+20%`, 'l-buff');
+          floatDmg(q(`card-${tgtKey}`), '玩物侍奉', 'hsl(42,80%,60%)', '14px');
+      } else if (kfName === '玩物守护') {
+          applyStatus(tgtKey, { 名称: '玩物·防御上升', 数值: 0.2, 剩余回合: 3, 来源: kfName });
+          log(`${atk.name} 对 ${tgt.name} 施加「玩物·防御上升」，防御+20%`, 'l-buff');
+          floatDmg(q(`card-${tgtKey}`), '玩物守护', 'hsl(210,70%,60%)', '14px');
+      }
+
+      if ((kf.冷却?.[0] || 0) > 0) {
+          G.cds[atkKey] = G.cds[atkKey] || {};
+          G.cds[atkKey][kfName] = kf.冷却[0] + 1;
+      }
+      
+      endTurn(atkKey);
+      return;
+  }
   const base=kf.基础效果值||0;
   const floatR=kf.伤害浮动||[0.9,1.1];
   // 属性附加影响：字符串，取角色对应属性值
@@ -4176,6 +4445,7 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
     fxHeal(q(`card-${tgtKey}`),'hp');
     G.battleLog.push({t:'HEAL',a:atk.name,v:tgt.name,sk:kfName,d:dmg});
   } else if(dmg>0){
+    dmg = _applySlaveBonuses(atkKey, tgtKey, dmg);  // ← 新增这一行
     dealDmg(tgtKey,dmg);
     const color=critted?'var(--gold-bright)':'hsl(355,65%,60%)';
     const sz=critted?'22px':'17px';
@@ -4202,7 +4472,30 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
   }
   // 状态附加（名称为"无"时跳过；需要主运内功但未满足时跳过）
   if(kf.影响状态&&kf.影响状态.名称&&kf.影响状态.名称!=='无'&&tgt.alive&&!_kfNerfed){
-    const s=kf.影响状态;
+    // 奴隶之毒：根据队友数量增强概率和DOT数值（新增）
+    let eff;
+    if (kfName === '奴隶之毒') {
+        const teammates = G.pKeys.filter(k => k !== atkKey && gA(k)?.alive);
+        const targetStates = ['伴侣', '死亡奴隶', '玩物'];
+        let bonusCount = 0;
+        for (const k of teammates) {
+            const sts = G.statuses[k] || [];
+            if (sts.some(s => targetStates.includes(s.名称))) bonusCount++;
+        }
+        const baseProb = 0.4;
+        const finalProb = Math.min(0.95, baseProb + bonusCount * 0.1);
+        const baseVal = 0.08;
+        const finalVal = baseVal + bonusCount * 0.05;
+        eff = { ...kf.影响状态, 成功率: finalProb, 数值: finalVal };
+        if (bonusCount > 0) {
+            log(`${atk.name}「奴隶之毒」受${bonusCount}个队友加持：概率${Math.round(finalProb*100)}%，DOT${Math.round(finalVal*100)}%`, 'l-buff');
+            floatDmg(q(`card-${atkKey}`), `毒强化+${bonusCount}`, 'hsl(120,70%,50%)', '14px');
+        }
+    } else {
+        eff = kf.影响状态;
+    }
+
+    const s=eff;
     // 即时生效（影响回合===0）
     if(s.影响回合===0&&s.名称==='破军'){
       const isAtkPlayer=G.pKeys.includes(atkKey);
@@ -4884,6 +5177,17 @@ function processStatusTick(key){
       const d=s.数值>0&&s.数值<1?Math.floor(c.hp.max*s.数值):Math.floor(s.数值||c.hp.max*0.05);
       dealDmg(key,d);
       log(`${c.name}【${s.名称}】-${d}`,'l-dmg');
+    }
+    // 奴隶自愈（新增）
+    if (s.名称 === '奴隶自愈') {
+        const heal = Math.floor(c.hp.max * 0.2);
+        if (heal > 0) {
+            c.hp.cur = Math.min(c.hp.max, c.hp.cur + heal);
+            log(`${c.name}【奴隶自愈】恢复 ${heal} 血量`, 'l-heal');
+            floatDmg(q(`card-${key}`), `+${heal}`, 'hsl(158,50%,55%)', '14px');
+            fxHeal(q(`card-${key}`), 'hp');
+            updateCard(key);
+        }
     }
     if(s.名称.startsWith('内伤')){
       const d=s.数值>0&&s.数值<1?Math.floor(c.mp.max*s.数值):Math.floor(s.数值||c.mp.max*0.05);
