@@ -4436,6 +4436,16 @@ async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
     const _xhmg2=(G.statuses[atkKey]||[]).find(s=>s.名称==='血海魔功');
     if(_xhmg2)dmg*=1+(_xhmg2.数值||0.5);
   }
+// ---- 天枢星耀：星斗剑法伤害 ×1.3 ----
+const tianshuSt = (G.statuses[atkKey] || []).find(s => s.名称 === '天枢星耀');
+if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
+    const bonus = tianshuSt.数值 || 1.3;
+    const oldDmg = dmg;
+    dmg = Math.floor(dmg * bonus);
+    log(`${atk.name}【天枢星耀】星斗剑法威力提升！(${oldDmg} → ${dmg})`, 'l-crit');
+    floatDmg(q(`card-${atkKey}`), `星耀×${bonus.toFixed(1)}`, 'hsl(42,80%,60%)', '16px');
+    G.battleLog.push({t:'BUFF', a:atk.name, sk:'天枢星耀', v:`${kfName}倍率×${bonus.toFixed(1)}`});
+}
   dmg=Math.floor(Math.max(0,dmg));
   // 斗转星移伤害倍率（被反击时生效）
   if(G._dzxyDmgMul){dmg=Math.floor(dmg*G._dzxyDmgMul);}
