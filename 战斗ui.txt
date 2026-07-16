@@ -2836,7 +2836,7 @@ async function init(){
   if(useData.我方队友&&Object.keys(useData.我方队友).length){
     await fixAllyStats(mvu);
   }
-  G.actors={};G.pKeys=[];G.eKeys=[];G.statuses={};G.cds={};G.atbProg={};G.copiedKf={};
+  G.substitute={};G.actors={};G.pKeys=[];G.eKeys=[];G.statuses={};G.cds={};G.atbProg={};G.copiedKf={};
   G.defending=new Set();G.jiazhuMap={};G.roundCount=0;G.result=null;G.settleChoice=null;G.expGained=0;
   G.battleLog=[];G.itemsUsed={};G.charExp={};G.charExpNext={};G.charCurExp={};G.charCurLv={};G.charBskPts={};
 
