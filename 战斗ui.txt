@@ -5067,7 +5067,7 @@ if (taunter && gA(taunter)?.alive) {
   } else {
     tgtKey=ps[Math.floor(Math.random()*ps.length)];
   }
-
+  }
   // 保护判定
   if(G.jiazhuMap[tgtKey]&&Math.random()<0.8){
     const g=G.jiazhuMap[tgtKey];
