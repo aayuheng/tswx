@@ -2225,6 +2225,7 @@ let G = {
   aiMsgId: null, battleLog: [], itemsUsed: {},
   charExp: {}, charExpNext: {}, charCurExp: {}, charCurLv: {},
   charBskPts: {},
+  substitute: {},   // { 角色key: { hp, maxHp } }
 };
 let _speedMul = 1;
 let _autoMode = false;
@@ -3253,6 +3254,21 @@ function onAct(type){
   clearAllPanels(); clearBtns();
 
   if(type==='attack'){
+  const tauntSt = (G.statuses[G.curKey] || []).find(s => s.名称 === '嘲讽');
+  if (tauntSt) {
+    // 被嘲讽：强制攻击嘲讽来源
+    const srcKey = tauntSt.来源;
+    if (srcKey && gA(srcKey)?.alive) {
+      q('b-atk').classList.add('on');
+      log(`${gA(G.curKey).name} 被【嘲讽】强制攻击 ${gA(srcKey).name}`, 'l-buff');
+      doNormalAttack(G.curKey, srcKey);
+      return;
+    } else {
+      // 来源已死，清除嘲讽
+      G.statuses[G.curKey] = (G.statuses[G.curKey] || []).filter(s => s.名称 !== '嘲讽');
+      updateCard(G.curKey);
+    }
+  }
     G.pending={type:'attack'};
     enterSelect('enemy');
     q('b-atk').classList.add('on');
@@ -3309,6 +3325,16 @@ function cancelSelect(){
 
 function onCardClick(key){
   if(G.phase!=='selectTarget')return;
+  // ===== 嘲讽拦截 =====
+  const tauntSt = (G.statuses[G.curKey] || []).find(s => s.名称 === '嘲讽');
+  if (tauntSt && tauntSt.来源 && key !== tauntSt.来源) {
+    const src = gA(tauntSt.来源);
+    if (src && src.alive) {
+      toast('你被嘲讽，只能攻击 ' + src.name + '！');
+      return;
+    }
+  }
+  // ===== 拦截结束 =====
   const c=gA(key); if(!c||!c.alive)return;
   const isE=G.eKeys.includes(key);
   if(G.tgtMode==='enemy'&&!isE)return;
@@ -3899,8 +3925,43 @@ function buildKfPanel(){
 }
 
 function selectKf(key,kfName,kf){
+  // ===== 嘲讽检测 =====
+  const tauntSt = (G.statuses[key] || []).find(s => s.名称 === '嘲讽');
+  let forcedTarget = null;
+  if (tauntSt) {
+    forcedTarget = tauntSt.来源;
+    const src = gA(forcedTarget);
+    if (!src || !src.alive) {
+      G.statuses[key] = (G.statuses[key] || []).filter(s => s.名称 !== '嘲讽');
+      updateCard(key);
+      forcedTarget = null;
+    }
+  }
+  // ===== 嘲讽检测结束 =====
+
   clearAllPanels(); clearBtns();
-  const range=kf.作用范围||'敌方单体';
+  const range = kf.作用范围 || '敌方单体';
+  const isHeal = range.includes('我方') || range.includes('仅我') || range.includes('友');
+
+  // 如果被嘲讽且目标不是治疗类
+  if (forcedTarget && !isHeal) {
+    const tgts = [forcedTarget];
+    // 相邻技能：带上相邻敌人
+    if (range.includes('相邻')) {
+      const all = aliveE();
+      const idx = all.indexOf(forcedTarget);
+      if (idx > 0) tgts.push(all[idx-1]);
+      if (idx < all.length-1) tgts.push(all[idx+1]);
+    }
+    // 群体技能：打全体（包含嘲讽来源即可）
+    if (range.includes('群体') || range.includes('全体')) {
+      doKungfu(key, kfName, aliveE());
+      return;
+    }
+    doKungfu(key, kfName, tgts);
+    return;
+  }
+  // ===== 原逻辑（未被嘲讽时） =====
   if(range.includes('仅我')){ G.phase='acting'; doKungfu(key,kfName,[key]); }
   else if(range.includes('我方')&&range.includes('群体')){ G.phase='acting'; doKungfu(key,kfName,aliveP()); }
   else if(range.includes('我方')||range.includes('友')){ G.pending={type:'kungfu',kf:kfName}; enterSelect('ally'); }
@@ -4214,8 +4275,50 @@ async function aiExecuteSsb(atkKey){
   endTurn(atkKey);
 }
 
-async function doKfOnTgt(atkKey,kfName,kf,tgtKey){
-  const atk=gA(atkKey),tgt=gA(tgtKey); if(!atk||!tgt||!tgt.alive)return;
+async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
+  const atk = gA(atkKey), tgt = gA(tgtKey);
+  if (!atk || !tgt || !tgt.alive) return;
+  // ===== 替身武功通用特判（不硬编码任何武功名） =====
+  const subConfig = kf._substitute;
+  if (subConfig) {
+    if (atkKey !== tgtKey) {
+      log(`${atk.name} 不能对别人使用替身技能`, 'l-miss');
+      return;
+    }
+    if (kf.消耗内力 > 0 && atk.mp.cur < kf.消耗内力) {
+      log(`${atk.name} 内力不足`, 'l-miss');
+      return;
+    }
+
+    let maxHp = 0;
+    if (subConfig.type === 'fixed') {
+      maxHp = subConfig.hp;
+    } else if (subConfig.type === 'blood') {
+      const cost = Math.max(1, Math.floor(atk.hp.cur * 0.5));
+      if (atk.hp.cur <= 1) {
+        log(`${atk.name} 气血已近枯竭，无法施展技能`, 'l-miss');
+        return;
+      }
+      atk.hp.cur -= cost;
+      maxHp = atk.hp.max;
+      updateCard(atkKey);
+    }
+
+    if (kf.消耗内力 > 0) {
+      atk.mp.cur -= kf.消耗内力;
+      updateCard(atkKey);
+    }
+
+    summonSubstitute(atkKey, maxHp);
+
+    if ((kf.冷却?.[0] || 0) > 0) {
+      G.cds[atkKey] = G.cds[atkKey] || {};
+      G.cds[atkKey][kfName] = kf.冷却[0] + 1;
+    }
+
+    return;
+  }
+  // ===== 替身特判结束 =====
   // 对自己施法（轻功/自buff）跳过命中判定
   if(atkKey!==tgtKey){
     // 命中判定（武功独立命中率，不受身法影响）
@@ -4937,8 +5040,25 @@ function enemyAct(key){
   const role=_classifyRole(c.kungfu||[]);
   const hpPct=c.hp.cur/c.hp.max;
 
-  // 目标选择：输出型70%集火最低血量，控制型优先未被控目标
-  let tgtKey;
+// ===== 目标选择：优先攻击嘲讽者 =====
+// 1. 检查我方是否有角色带「嘲讽」状态
+let taunter = null;
+for (const k of ps) {
+  const sts = G.statuses[k] || [];
+  if (sts.some(s => s.名称 === '嘲讽')) {
+    taunter = k;
+    break;
+  }
+}
+
+let tgtKey;
+if (taunter && gA(taunter)?.alive) {
+  // 2. 有嘲讽 → 强制攻击嘲讽者
+  tgtKey = taunter;
+  log(`${gA(key).name} 被【嘲讽】吸引，攻击 ${gA(taunter).name}`, 'l-buff');
+  floatDmg(q(`card-${tgtKey}`), '嘲讽', 'hsl(42,80%,60%)', '16px');
+} else {
+  // 3. 无嘲讽 → 原有目标选择逻辑（保持不变）
   if(role==='atk'&&Math.random()<0.7){
     tgtKey=ps.reduce((a,b)=>(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b);
   } else if(role==='ctrl'){
@@ -5046,19 +5166,46 @@ function enemyAct(key){
 }
 
 // ── 伤害 / 状态 ───────────────────────────────────────────
-function dealDmg(key,dmg){
-  const c=gA(key); if(!c||!c.alive)return;
-  c.hp.cur=Math.max(0,c.hp.cur-dmg); updateCard(key);
-  if(c.hp.cur<=0){
-    c.alive=false;
-    G.battleLog.push({t:'KO',v:c.name,side:c.type==='enemy'?'E':'P'});
-    log(`${c.name} 倒下了！`,'l-sys'); updateCard(key);
-    if(c.type==='enemy'){
+function dealDmg(key, dmg) {
+  const c = gA(key);
+  if (!c || !c.alive) return;
+
+  // ===== 替身吸收（所有伤害，包括DOT） =====
+  if (hasSubstitute(key)) {
+    const sub = G.substitute[key];
+    if (dmg >= sub.hp) {
+      // 替身被打碎，剩余伤害不穿透本体
+      sub.hp = 0;
+      delete G.substitute[key];
+      log(`${c.name} 的替身被打碎！`, 'l-sys');
+      floatDmg(q(`card-${key}`), '替身破', 'hsl(0,70%,50%)', '14px');
+      updateCard(key);
+      return;
+    } else {
+      sub.hp -= dmg;
+      log(`${c.name} 的替身吸收了 ${dmg} 伤害，剩余 ${sub.hp}`, 'l-buff');
+      floatDmg(q(`card-${key}`), `替身-${dmg}`, 'hsl(200,70%,55%)', '13px');
+      updateCard(key);
+      return;
+    }
+  }
+
+  // ===== 无替身：正常扣本体 =====
+  c.hp.cur = Math.max(0, c.hp.cur - dmg);
+  updateCard(key);
+
+  if (c.hp.cur <= 0) {
+    c.alive = false;
+    // 死亡时清除替身（保险）
+    if (G.substitute[key]) delete G.substitute[key];
+    G.battleLog.push({t:'KO', v:c.name, side:c.type==='enemy'?'E':'P'});
+    log(`${c.name} 倒下了！`, 'l-sys');
+    updateCard(key);
+    if (c.type === 'enemy') {
       grantKillExp(key);
-      const _isXinmo=/^\[心魔\]/.test(c.name);
-      const gold=Math.floor(c.level*20*rand(0.5,2))*(_isXinmo?3:1);
-      G.goldGained=(G.goldGained||0)+gold;
-      if(gold>0) log(`掉落 ${gold} 金钱`,'l-buff');
+      const gold = Math.floor(c.level * 20 * rand(0.5, 2));
+      G.goldGained = (G.goldGained || 0) + gold;
+      if (gold > 0) log(`掉落 ${gold} 金钱`, 'l-buff');
     }
   }
 }
@@ -5196,15 +5343,55 @@ function grantKillExp(enemyKey){
   }
 }
 
-function applyStatus(key,s){
+function applyStatus(key, s){
   if(!s||!s.名称)return;
   G.statuses[key]=G.statuses[key]||[];
   const exist=G.statuses[key].find(x=>x.名称===s.名称);
-  if(exist){exist.剩余回合=Math.max(exist.剩余回合,s.剩余回合);exist.数值=s.数值;}
-  else G.statuses[key].push({...s});
+  if(exist){
+    exist.剩余回合=Math.max(exist.剩余回合,s.剩余回合);
+    exist.数值=s.数值;
+    // 嘲讽来源更新
+    if (s.名称 === '嘲讽' && s.来源) {
+      exist.来源 = s.来源;
+    }
+  } else {
+    G.statuses[key].push({...s});
+  }
   updateCard(key);
 }
+// ── 替身系统 ──────────────────────────────────────────
 
+// 判断是否有替身
+function hasSubstitute(key) {
+  return G.substitute[key] && G.substitute[key].hp > 0;
+}
+
+// 获取替身当前血量
+function getSubstituteHp(key) {
+  if (!hasSubstitute(key)) return 0;
+  return G.substitute[key].hp;
+}
+
+// 召唤替身（覆盖旧替身）
+function summonSubstitute(key, maxHp) {
+  const c = gA(key);
+  if (!c || !c.alive) return false;
+  G.substitute[key] = { hp: maxHp, maxHp: maxHp };
+  log(`${c.name} 召唤替身！气血 ${maxHp}`, 'l-buff');
+  floatDmg(q(`card-${key}`), `替身 ${maxHp}`, 'hsl(200,70%,55%)', '16px');
+  updateCard(key);
+  return true;
+}
+
+// 清除替身
+function clearSubstitute(key) {
+  if (G.substitute[key]) {
+    delete G.substitute[key];
+    updateCard(key);
+    const c = gA(key);
+    if (c) log(`${c.name} 的替身消失了`, 'l-buff');
+  }
+}
 function applyPassiveHeal(key){
   const c=gA(key); if(!c||!c.alive||!c.mainKf)return;
   const kf=KUNGFU_LIB[c.mainKf]; if(!kf)return;
@@ -5609,6 +5796,7 @@ function sendBattleRecord(){
 async function doRetry(){
   q('modal-bg').classList.remove('open');
   G.phase='boot';
+  G.substitute = {};
   q('log-zone').innerHTML='';
   q('turn-banner').textContent='';
   q('action-zone').classList.add('off');
@@ -5659,6 +5847,13 @@ function makeCard(key){
       </div>
       <div class="bar-track"><div class="bar-fill f-mp" style="width:${mpP}%"></div></div>
     </div>`}
+    ${hasSubstitute(key) ? `<div class="bar-wrap" style="margin-top:2px">
+      <div class="bar-meta">
+        <span class="bar-lbl" style="color:hsl(200,70%,55%)">替身</span>
+        <span class="bar-val" style="color:hsl(200,70%,55%)">${G.substitute[key].hp}/${G.substitute[key].maxHp}</span>
+    </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(G.substitute[key].hp/G.substitute[key].maxHp)*100}%;background:linear-gradient(90deg,hsl(200,50%,30%),hsl(200,70%,55%))"></div></div>
+    </div>` : ''}
     <div class="st-row">${stHtml}</div>
   `;
   div.addEventListener('click',()=>onCardClick(key));
