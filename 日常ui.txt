@@ -3475,10 +3475,12 @@ function renderParty() {
               if(renames.length) showToast(`队友同步：${renames.join('，')}`);
             }
             await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-            showToast('更新完成，即将刷新...');
+            // 立即重新加载_state并刷新UI，让用户看到修正后的数值
+            try{ await loadState(); renderParty(); }catch(e2){}
+            showToast('更新完成，数值已刷新');
             var _mu=document.querySelector('.wx-money');if(_mu)_mu.classList.remove('has-update');
-            setTimeout(() => callParent('WX_RELOAD_CHAT'), 1200);
-          } catch(e) { showToast('更新失败：' + (e.message || e)); }
+            setTimeout(() => callParent('WX_RELOAD_CHAT'), 2000);
+            } catch(e) { showToast('更新失败：' + (e.message || e)); }
         }},
         { label: '取消', cls: '' }
       ]
