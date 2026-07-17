@@ -4005,7 +4005,7 @@ function doKungfu(atkKey,kfName,tgtKeys){
         const normCC=copyable.find(_isCC);
         if(normCC) pick=normCC;
         else {
-          const atkKf=copyable.filter(n=>{const k=KUNGFU_LIB[n];return k&&k.类别!=='轻功'&&k.类别!=='内功'&&!(k.影响状态&&(k.影响状态.名称==='回血'||k.影响状态.名称==='回内'));});
+          const atkKf=copyable.filter(n=>{const k=KUNGFU_LIB[n];return k&&k.类别!=='轻功'&&k.类别!=='内功'&&!(k.影响状态&&(k.影响状态.名称==='回血'||k.影响状态.名称==='回内'||k.影响状态.名称==='回血回内'));});
           pick=atkKf.length?_bestBase(atkKf):_bestBase(copyable);
         }
       }
@@ -4231,7 +4231,7 @@ async function aiExecuteSsb(atkKey){
     if(range.includes('我方')&&(range.includes('群体')||range.includes('全体')))return[].concat(allies);
     if(range.includes('群体')||range.includes('全体'))return[].concat(enemies);
     if(range.includes('我方')){
-      if(kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内')){
+      if(kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内'||kf.影响状态.名称==='回血回内')){
         return[allies.reduce(function(a,b){return(gA(a).hp.cur/gA(a).hp.max)<=(gA(b).hp.cur/gA(b).hp.max)?a:b;})];
       }
       return[allies[Math.floor(Math.random()*allies.length)]];
@@ -4660,7 +4660,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
       return;
     }
     // 即时生效（影响回合===0）：回血/回内直接结算，不挂持续状态
-    if(s.影响回合===0&&(s.名称==='回血'||s.名称==='回内')){
+    if(s.影响回合===0&&(s.名称==='回血'||s.名称==='回内'||s.名称==='回血回内')){
       if(Math.random()<(s.成功率||0)){
         playSfx(SFX.heal);
         const val=s.数值||0;
@@ -4674,12 +4674,23 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
             log(`${atk.name}「${kfName}」回血 +${h}`,'l-heal');
             floatDmg(q(`card-${hKey}`),`+${h}`,'hsl(158,50%,55%)');fxHeal(q(`card-${hKey}`),'hp');
             G.battleLog.push({t:'HEAL',a:atk.name,v:hChar.name,sk:kfName,d:h});}
-        } else {
+        } else if(s.名称==='回内'){
           const m=val>0&&val<=1?Math.floor(hChar.mp.max*val):Math.floor(val);
           if(m>0){hChar.mp.cur=Math.min(hChar.mp.max,hChar.mp.cur+m);updateCard(hKey);
             log(`${atk.name}「${kfName}」回内 +${m}`,'l-heal');
             floatDmg(q(`card-${hKey}`),`+${m}`,'hsl(210,70%,55%)');fxHeal(q(`card-${hKey}`),'mp');
             G.battleLog.push({t:'HEAL',a:atk.name,v:hChar.name,sk:kfName,d:m});}
+        } else if(s.名称==='回血回内'){
+          const h=val>0&&val<=1?Math.floor(hChar.hp.max*val):Math.floor(val);
+          const m=val>0&&val<=1?Math.floor(hChar.mp.max*val):Math.floor(val);
+          if(h>0||m>0){
+            if(h>0){hChar.hp.cur=Math.min(hChar.hp.max,hChar.hp.cur+h);}
+            if(m>0){hChar.mp.cur=Math.min(hChar.mp.max,hChar.mp.cur+m);}
+            updateCard(hKey);
+            log(`${atk.name}「${kfName}」回血回内 +${h}血 +${m}内`,'l-heal');
+            if(h>0) floatDmg(q(`card-${hKey}`),`+${h}血`,'hsl(158,50%,55%)');
+            if(m>0) setTimeout(()=>{floatDmg(q(`card-${hKey}`),`+${m}内`,'hsl(210,70%,55%)');fxHeal(q(`card-${hKey}`),'mp');},spd(400));
+            G.battleLog.push({t:'HEAL',a:atk.name,v:hChar.name,sk:kfName,d:h+m});}
         }
       }
       return;
@@ -4729,6 +4740,27 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(x=>KEEP.includes(x.名称)||/^免伤/.test(x.名称));
         const removed=before-(G.statuses[tgtKey]||[]).length;
         log(`${tgt.name} 被净化，清除 ${removed} 个负面状态`,'l-buff');
+        updateCard(tgtKey);
+      } else if(s.名称==='驱散'){
+        // 驱散增益：清除敌人身上的buff
+        // 数值=0 表示全部清除，>0 表示清除N个随机buff
+        const BUFF_NAMES=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
+        const targetBuffs=G.statuses[tgtKey]||[];
+        const buffs=targetBuffs.filter(x=>BUFF_NAMES.includes(x.名称)||/^免伤/.test(x.名称)||/^护身·/.test(x.名称));
+        const dispelCount=s.数值||0;
+        if(dispelCount>0){
+          const shuffled=[...buffs].sort(()=>Math.random()-0.5);
+          const removed=shuffled.slice(0,Math.min(dispelCount,buffs.length));
+          const rNames=removed.map(x=>x.名称);
+          G.statuses[tgtKey]=targetBuffs.filter(x=>!rNames.includes(x.名称));
+          log(`${tgt.name} 被驱散 ${removed.length} 个增益（${rNames.join('、')}）`,'l-buff');
+          floatDmg(q(`card-${tgtKey}`),`驱散×${removed.length}`,'hsl(280,70%,65%)','17px');
+        }else{
+          const buffNames=buffs.map(x=>x.名称);
+          G.statuses[tgtKey]=targetBuffs.filter(x=>!buffNames.includes(x.名称));
+          log(`${tgt.name} 所有增益被驱散！（${buffNames.join('、')}）`,'l-buff');
+          floatDmg(q(`card-${tgtKey}`),'全驱散','hsl(280,80%,70%)','20px');
+        }
         updateCard(tgtKey);
       } else if(s.名称==='吸取内力'){
         // 即时吸取：从目标吸取内力给攻击者
@@ -5020,15 +5052,20 @@ function _classifyRole(kungfuList){
   for(const name of kungfuList){
     const kf=KUNGFU_LIB[name]; if(!kf)continue;
     if(kf.影响状态&&CTRLS.includes(kf.影响状态.名称)){ctrl++;}
-    else if(kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内')){sup++;}
+    else if(kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内'||kf.影响状态.名称==='回血回内'||kf.影响状态.名称==='驱散')){sup++;}
     else{atk++;}
   }
   if(ctrl>=atk&&ctrl>=sup)return 'ctrl';
   if(sup>=atk&&sup>=ctrl)return 'sup';
   return 'atk';
 }
-function _isHeal(kf){return kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内');}
+function _isHeal(kf){return kf.影响状态&&(kf.影响状态.名称==='回血'||kf.影响状态.名称==='回内'||kf.影响状态.名称==='回血回内');}
 function _isCtrl(kf){const C=['点穴','眩晕','冰冻','封穴'];return kf.影响状态&&C.includes(kf.影响状态.名称);}
+function _isDispel(kf){return kf.影响状态&&kf.影响状态.名称==='驱散';}
+function _tgtHasBuff(tKey){
+  const BUFF_NAMES=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
+  return(G.statuses[tKey]||[]).some(s=>BUFF_NAMES.includes(s.名称)||/^免伤/.test(s.名称)||/^护身·/.test(s.名称));
+}
 function _isAoe(kf){const r=kf.作用范围||'';return r.includes('群体')||r.includes('全体');}
 function _tgtHasCtrl(tKey){return(G.statuses[tKey]||[]).some(s=>['点穴','眩晕','冰冻','封穴'].includes(s.名称));}
 
@@ -5067,7 +5104,8 @@ if (taunter && gA(taunter)?.alive) {
   } else {
     tgtKey=ps[Math.floor(Math.random()*ps.length)];
   }
-  }
+}
+
   // 保护判定
   if(G.jiazhuMap[tgtKey]&&Math.random()<0.8){
     const g=G.jiazhuMap[tgtKey];
@@ -5119,6 +5157,8 @@ if (taunter && gA(taunter)?.alive) {
         if(_isHeal(kf)){if(hpPct>=0.2&&Math.random()>0.05)continue; usedKf=name; break;}
         // 控制类：目标已被控则跳过
         if(_isCtrl(kf)&&_tgtHasCtrl(tgtKey))continue;
+        // 驱散类：目标有buff时优先使用
+        if(_isDispel(kf)&&_tgtHasBuff(tgtKey)){usedKf=name; break;}
         // 群攻：输出型且目标≥3时优先
         if(role==='atk'&&_isAoe(kf)&&ps.length>=3){usedKf=name; break;}
         // 默认使用
@@ -5404,6 +5444,12 @@ function applyPassiveHeal(key){
   } else if(eff.名称==='回内'){
     const m=val<1?Math.floor(c.mp.max*val):Math.floor(val);
     if(m>0){c.mp.cur=Math.min(c.mp.max,c.mp.cur+m);log(`${c.name} 内功回内 +${m}`,'l-heal');healed=true;}
+  } else if(eff.名称==='回血回内'){
+    const v=val<1?Math.floor(c.hp.max*val):Math.floor(val);
+    const h=Math.min(c.hp.max,c.hp.cur+v)-c.hp.cur;
+    const m=Math.min(c.mp.max,c.mp.cur+v)-c.mp.cur;
+    if(v>0){c.hp.cur=Math.min(c.hp.max,c.hp.cur+v);c.mp.cur=Math.min(c.mp.max,c.mp.cur+v);
+      log(`${c.name} 内功回血回内 +${h}血 +${m}内`,'l-heal');healed=true;}
   }
   if(healed)updateCard(key);
 }
@@ -5445,6 +5491,20 @@ function processStatusTick(key){
       c.mp.cur=Math.min(c.mp.max,c.mp.cur+m); updateCard(key);
       log(`${c.name}【回内】+${m}`,'l-heal');
       floatDmg(q(`card-${key}`),`+${m}`,'hsl(210,70%,55%)',14);fxHeal(q(`card-${key}`),'mp');
+    }
+    if(s.名称==='回血回内'){
+      const v=s.数值||0;
+      const h=v>0&&v<1?Math.floor(c.hp.max*v):Math.floor(v);
+      const m=v>0&&v<1?Math.floor(c.mp.max*v):Math.floor(v);
+      if(h>0){c.hp.cur=Math.min(c.hp.max,c.hp.cur+h);}
+      if(m>0){c.mp.cur=Math.min(c.mp.max,c.mp.cur+m);}
+      if(h>0||m>0){
+        updateCard(key);
+        log(`${c.name}【回血回内】+${h}血 +${m}内`,'l-heal');
+        if(h>0) floatDmg(q(`card-${key}`),`+${h}血`,'hsl(158,50%,55%)',14);
+        if(m>0) setTimeout(()=>{floatDmg(q(`card-${key}`),`+${m}内`,'hsl(210,70%,55%)',14);fxHeal(q(`card-${key}`),'mp');},spd(400));
+        fxHeal(q(`card-${key}`),'hp');
+      }
     }
     if(s.名称==='九阳护体'){
       const h=Math.floor(c.hp.max*0.15);
@@ -5861,7 +5921,7 @@ function makeCard(key){
 }
 
 function renderSt(key){
-  const BUFFS=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
+  const BUFFS=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
     const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称);
@@ -5878,7 +5938,7 @@ function renderSt(key){
     // 龙象之力：显示层数
     if(s.名称==='龙象之力'){const stacks=Math.round(s.数值/0.1);return `<span class="s-bd ${cls}" title="龙象之力 ×${stacks}（+${Math.round(s.数值*100)}%伤害）">龙象之力(${stacks})</span>`;}
     if(s.剩余回合===-1&&s.来源){
-      const useLabel=s.名称!==s.来源&&s.名称!=='回血'&&s.名称!=='回内'&&s.名称!=='免疫异常';
+      const useLabel=s.名称!==s.来源&&s.名称!=='回血'&&s.名称!=='回内'&&s.名称!=='回血回内'&&s.名称!=='免疫异常';
       const label=useLabel?s.名称:s.来源;
       const valStr=s.数值?(s.数值<1?Math.round(s.数值*100)+'%':s.数值):'';
       const tip=`${s.名称}${valStr?' '+valStr:''}（永久）— ${s.来源}`;
