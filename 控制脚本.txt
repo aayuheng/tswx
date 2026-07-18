@@ -5,28 +5,34 @@ if (typeof window._ === 'undefined' || typeof window._.get !== 'function') {
   window._ = {
     // 基础工具
     get: function(obj, path, defaultValue) {
-      if (!obj || typeof obj !== 'object') return defaultValue;
-      const keys = path.split('.');
-      let result = obj;
-      for (const key of keys) {
-        if (result == null || typeof result !== 'object') return defaultValue;
-        result = result[key];
-      }
-      return result === undefined ? defaultValue : result;
-    },
-    set: function(obj, path, value) {
-      const keys = path.split('.');
-      let current = obj;
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (!(key in current) || typeof current[key] !== 'object') {
-          current[key] = {};
-        }
-        current = current[key];
-      }
-      current[keys[keys.length - 1]] = value;
-      return obj;
-    },
+          if (!obj || typeof obj !== 'object') return defaultValue;
+          // 自动识别斜杠/点号路径
+          const keys = path.includes('/') ? path.split('/') : path.split('.');
+          // 去掉空字符串（斜杠路径开头可能带空）
+          const cleanKeys = keys.filter(k => k);
+          let result = obj;
+          for (const key of cleanKeys) {
+            if (result == null || typeof result !== 'object') return defaultValue;
+            result = result[key];
+          }
+          return result === undefined ? defaultValue : result;
+        },
+        set: function(obj, path, value) {
+          // 自动识别斜杠/点号路径
+          const keys = path.includes('/') ? path.split('/') : path.split('.');
+          // 去掉空字符串（斜杠路径开头可能带空）
+          const cleanKeys = keys.filter(k => k);
+          let current = obj;
+          for (let i = 0; i < cleanKeys.length - 1; i++) {
+            const key = cleanKeys[i];
+            if (!(key in current) || typeof current[key] !== 'object') {
+              current[key] = {};
+            }
+            current = current[key];
+          }
+          current[cleanKeys[cleanKeys.length - 1]] = value;
+          return obj;
+        },
     clamp: function(num, min, max) {
       return Math.min(Math.max(num, min), max);
     },
@@ -8764,46 +8770,55 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
       }
       
       // 特殊处理：持久状态（支持 add/remove 操作）
-      if (path.includes('/持久状态')) {
-        const current = _.get(data, `stat_data${path}`, []);
-        if (op === 'add') {
-          if (!current.includes(value)) {
-            current.push(value);
-            _.set(data, `stat_data${path}`, current);
-            changes.push(`✅ 持久状态添加：${value}`);
-          }
-        } else if (op === 'remove') {
-          const filtered = current.filter(s => s !== value);
-          _.set(data, `stat_data${path}`, filtered);
-          changes.push(`✅ 持久状态移除：${value}`);
-        } else if (op === 'replace') {
-          if (Array.isArray(value)) {
-            _.set(data, `stat_data${path}`, value);
-            changes.push(`✅ 持久状态替换：${value.join(', ')}`);
-          }
-        }
-        continue;
-      }
+            if (path.includes('/持久状态')) {
+              const dotPath = 'stat_data.' + path.slice(1).replace(/\//g, '.');
+              const current = _.get(data, dotPath, []);
+              if (op === 'add') {
+                if (!current.includes(value)) {
+                  current.push(value);
+                  _.set(data, dotPath, current);
+                  changes.push(`✅ 持久状态添加：${value}`);
+                }
+              } else if (op === 'remove') {
+                const filtered = current.filter(s => s !== value);
+                _.set(data, dotPath, filtered);
+                changes.push(`✅ 持久状态移除：${value}`);
+              } else if (op === 'replace') {
+                if (Array.isArray(value)) {
+                  _.set(data, dotPath, value);
+                  changes.push(`✅ 持久状态替换：${value.join(', ')}`);
+                }
+              }
+              continue;
+            }
       
-      // 特殊处理：堕落度 >= 1000 且为女性，自动添加 肉便器 状态
-      if (path.includes('/堕落度') && typeof value === 'number' && value >= 1000) {
-        const parts = path.split('/');
-        if (parts.length >= 3 && parts[1] === '角色') {
-          const npcKey = parts[2];
-          const rmbPath = `/角色/${npcKey}/持久状态`;
-          const current = _.get(data, `stat_data${rmbPath}`, []);
-          if (!current.includes('肉便器')) {
-            current.push('肉便器');
-            _.set(data, `stat_data${rmbPath}`, current);
-            changes.push(`✅ 堕落度达到 1000，自动添加 肉便器 状态`);
-          }
-        }
-      }
+            // 特殊处理：堕落度 >= 1000 且为女性，自动添加 肉便器 状态
+            if (path.includes('/堕落度') && typeof value === 'number' && value >= 1000) {
+              const parts = path.split('/');
+              if (parts.length >= 3 && parts[1] === '角色') {
+                const npcKey = parts[2];
+                const rmbPath = `/角色/${npcKey}/持久状态`;
+                const dotPath = 'stat_data.' + rmbPath.slice(1).replace(/\//g, '.');
+                const current = _.get(data, dotPath, []);
+                if (!current.includes('肉便器')) {
+                  current.push('肉便器');
+                  _.set(data, dotPath, current);
+                  changes.push(`✅ 堕落度达到 1000，自动添加 肉便器 状态`);
+                }
+              }
+            }
       
-      // 通用 replace 操作
-      if (op === 'replace') {
-        _.set(data, `stat_data${path}`, value);
-        changes.push(`✅ ${path} = ${JSON.stringify(value)}`);
+            // 通用 replace/insert/delta 操作
+            const dotPath = 'stat_data.' + path.slice(1).replace(/\//g, '.');
+            if (op === 'replace' || op === 'insert') {
+              _.set(data, dotPath, value);
+              changes.push(`✅ ${path} = ${JSON.stringify(value)}`);
+            } else if (op === 'delta') {
+              const old = _.get(data, dotPath, 0);
+              const newVal = old + value;
+              _.set(data, dotPath, newVal);
+              changes.push(`✅ ${path} 变化 ${old} → ${newVal}`);
+            }
       }
     }
     
