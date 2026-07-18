@@ -8819,12 +8819,11 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
               _.set(data, dotPath, newVal);
               changes.push(`✅ ${path} 变化 ${old} → ${newVal}`);
             }
-      }
-    }
-    
-    await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-    return { ok: true, changes };
-  } catch(e) {
+                  }
+      
+                  await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
+                  return { ok: true, changes };
+                } catch(e) {
     console.error('[JSON Patch] 执行失败:', e);
     return { ok: false, msg: e.message };
   }
