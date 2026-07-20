@@ -2977,39 +2977,48 @@ for (const key of allKeys()) {
     const hasCaiHua = (c.kungfu || []).includes('采花领域');
 
     if (hasCuiHua) {
-        log(`${c.name} 的【摧花领域】展开！女性角色受击伤害+${Math.round(0.05*G.baihaiCount*100)}%，对主减伤${Math.round(0.03*G.baihaiCount*100)}%`,'l-buff');
-        applyStatus(key, { 名称: '摧花领域', 数值: 0, 剩余回合: -1, 来源: '摧花领域' });
-        // 实际效果存在 status 里供伤害计算用，但不显示多个状态
-        const isFemale = (c.gender === '女' || c.gender === 'female');
-        if (isFemale) {
-            const atkBonus = 0.05 * G.baihaiCount;
-            const defReduction = 0.03 * G.baihaiCount;
-            if (atkBonus > 0) {
-                G._cuiHuaAtkBonus = G._cuiHuaAtkBonus || {};
-                G._cuiHuaAtkBonus[key] = atkBonus;
+        log(`${c.name} 的【摧花领域】展开！女性敌人受击伤害+${Math.round(0.05*G.baihaiCount*100)}%，对主减伤${Math.round(0.03*G.baihaiCount*100)}%`,'l-buff');
+        // 给所有敌方女性角色挂摧花标记
+        for (const tKey of G.eKeys) {
+            const tc = gA(tKey);
+            if (!tc || !tc.alive) continue;
+            if (tc.gender === '女' || tc.gender === 'female') {
+                applyStatus(tKey, { 名称: '摧花领域', 数值: 0, 剩余回合: -1, 来源: '摧花领域' });
             }
-            if (defReduction > 0 && key !== 'player') {
-                G._cuiHuaDefReduction = G._cuiHuaDefReduction || {};
-                G._cuiHuaDefReduction[key] = defReduction;
-            }
+        }
+        // 伤害加成
+        const atkBonus = 0.05 * G.baihaiCount;
+        const defReduction = 0.03 * G.baihaiCount;
+        if (atkBonus > 0) {
+            G._cuiHuaAtkBonus = G._cuiHuaAtkBonus || {};
+            G._cuiHuaAtkBonus[key] = atkBonus;
+        }
+        if (defReduction > 0) {
+            G._cuiHuaDefReduction = G._cuiHuaDefReduction || {};
+            G._cuiHuaDefReduction[key] = defReduction;
         }
     }
 
     if (hasCaiHua) {
-        log(`${c.name} 的【采花领域】展开！女性奴隶角色伤害+${Math.round(0.05*G.miqingCount*100)}%，受伤-${Math.round(0.03*G.miqingCount*100)}%`,'l-buff');
-        applyStatus(key, { 名称: '采花领域', 数值: 0, 剩余回合: -1, 来源: '采花领域' });
-        const isFemaleSlave = (G.statuses[key] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称)) && (c.gender === '女' || c.gender === 'female');
-        if (isFemaleSlave) {
-            const dmgBonus = 0.05 * G.miqingCount;
-            const dmgReduction = 0.03 * G.miqingCount;
-            if (dmgBonus > 0) {
-                G._caiHuaDmgBonus = G._caiHuaDmgBonus || {};
-                G._caiHuaDmgBonus[key] = dmgBonus;
+        log(`${c.name} 的【采花领域】展开！队友奴隶角色伤害+${Math.round(0.05*G.miqingCount*100)}%，受伤-${Math.round(0.03*G.miqingCount*100)}%`,'l-buff');
+        // 采花标记挂在队友奴隶身上
+        for (const tKey of G.pKeys) {
+            const tc = gA(tKey);
+            if (!tc || !tc.alive) continue;
+            if ((G.statuses[tKey] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称))) {
+                applyStatus(tKey, { 名称: '采花领域', 数值: 0, 剩余回合: -1, 来源: '采花领域' });
             }
-            if (dmgReduction > 0) {
-                G._caiHuaDmgReduction = G._caiHuaDmgReduction || {};
-                G._caiHuaDmgReduction[key] = dmgReduction;
-            }
+        }
+        // 伤害加成
+        const dmgBonus = 0.05 * G.miqingCount;
+        const dmgReduction = 0.03 * G.miqingCount;
+        if (dmgBonus > 0) {
+            G._caiHuaDmgBonus = G._caiHuaDmgBonus || {};
+            G._caiHuaDmgBonus[key] = dmgBonus;
+        }
+        if (dmgReduction > 0) {
+            G._caiHuaDmgReduction = G._caiHuaDmgReduction || {};
+            G._caiHuaDmgReduction[key] = dmgReduction;
         }
     }
 }
@@ -3706,19 +3715,20 @@ function _applySlaveBonuses(atkKey, tgtKey, dmg) {
         dmg = Math.floor(dmg * (1 - (playDef.数值 || 0.2)));
     }
 
-    const isFemaleTgt = (gA(tgtKey)?.gender === '女' || gA(tgtKey)?.gender === 'female');
-    if (isFemaleTgt) {
-        const cuiAtk = G._cuiHuaAtkBonus?.[atkKey];
-        if (cuiAtk) {
-            dmg = Math.floor(dmg * (1 + cuiAtk));
+    // 摧花领域：被奴隶真气护身攻击时伤害增加
+    if ((G.statuses[tgtKey] || []).some(s => s.名称 === '摧花领域')) {
+        const cuiAtk = (G.statuses[atkKey] || []).some(s => s.名称 === '奴隶真气护身');
+        const bonus = G._cuiHuaAtkBonus?.[tgtKey];
+        if (cuiAtk && bonus) {
+            dmg = Math.floor(dmg * (1 + bonus));
         }
     }
-
-    const isFemaleAtk = (gA(atkKey)?.gender === '女' || gA(atkKey)?.gender === 'female');
-    if (isFemaleAtk && tgtKey === 'player') {
-        const cuiDef = G._cuiHuaDefReduction?.[atkKey];
-        if (cuiDef) {
-            dmg = Math.floor(dmg * (1 - cuiDef));
+    // 摧花领域：攻击奴隶真气护身时伤害减少
+    if ((G.statuses[atkKey] || []).some(s => s.名称 === '摧花领域')) {
+        const cuiDef = (G.statuses[tgtKey] || []).some(s => s.名称 === '奴隶真气护身');
+        const reduction = G._cuiHuaDefReduction?.[atkKey];
+        if (cuiDef && reduction) {
+            dmg = Math.floor(dmg * (1 - reduction));
         }
     }
 
@@ -3858,7 +3868,10 @@ function buildKfPanel(){
   for(const kfName of c.kungfu){
     const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
     if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
-    if(kf.类别==='奴隶神功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    if(kf.类别==='奴隶神功'){
+      const isPassive = kf.消耗内力===0 && kf.基础效果值===0 && (!kf.影响状态 || kf.影响状态.影响回合===-1);
+      if(isPassive)continue;
+    }
     const cd=G.cds[key]?.[kfName]||0, mpOk=c.mp.cur>=kf.消耗内力, cdOk=cd<=0;
     const off=!mpOk||!cdOk;
     const cdDisplay=cd;
@@ -4122,7 +4135,10 @@ function showSsbPanel(atkKey,step,firstKfName){
     if(step===2&&kfName===firstKfName)continue;
     const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
     if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
-    if(kf.类别==='奴隶神功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    if(kf.类别==='奴隶神功'){
+      const isPassive = kf.消耗内力===0 && kf.基础效果值===0 && (!kf.影响状态 || kf.影响状态.影响回合===-1);
+      if(isPassive)continue;
+    }
     const cd=G.cds[atkKey]?.[kfName]||0;
     const mpOk=curMp>=kf.消耗内力;
     const cdOk=cd<=0;
@@ -4235,7 +4251,10 @@ async function aiExecuteSsb(atkKey){
     if(kfName==='双手互搏')continue;
     var kf=KUNGFU_LIB[kfName]; if(!kf)continue;
     if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
-    if(kf.类别==='奴隶神功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    if(kf.类别==='奴隶神功'){
+      const isPassive = kf.消耗内力===0 && kf.基础效果值===0 && (!kf.影响状态 || kf.影响状态.影响回合===-1);
+      if(isPassive)continue;
+    }
     var cd=G.cds[atkKey]?.[kfName]||0;
     if(cd>0||c.mp.cur<kf.消耗内力)continue;
     avail.push({name:kfName,kf:kf});
@@ -5963,7 +5982,7 @@ function renderSt(key){
   const BUFFS=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
-    const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称)||/^摧花·/.test(s.名称)||/^采花·/.test(s.名称);
+    const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称)||s.名称==='摧花领域'||s.名称==='采花领域';
     const ctrl=CTRLS.includes(s.名称);
     const cls=b?'s-buff':ctrl?'s-ctrl':'s-debuff';
 	// 领袖气场特殊美化
