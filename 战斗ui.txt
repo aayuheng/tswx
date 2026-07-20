@@ -2977,29 +2977,38 @@ for (const key of allKeys()) {
     const hasCaiHua = (c.kungfu || []).includes('采花领域');
 
     if (hasCuiHua) {
+        log(`${c.name} 的【摧花领域】展开！女性角色受击伤害+${Math.round(0.05*G.baihaiCount*100)}%，对主减伤${Math.round(0.03*G.baihaiCount*100)}%`,'l-buff');
+        applyStatus(key, { 名称: '摧花领域', 数值: 0, 剩余回合: -1, 来源: '摧花领域' });
+        // 实际效果存在 status 里供伤害计算用，但不显示多个状态
         const isFemale = (c.gender === '女' || c.gender === 'female');
         if (isFemale) {
             const atkBonus = 0.05 * G.baihaiCount;
             const defReduction = 0.03 * G.baihaiCount;
             if (atkBonus > 0) {
-                applyStatus(key, { 名称: '摧花·受击加成', 数值: atkBonus, 剩余回合: -1, 来源: '摧花领域' });
+                G._cuiHuaAtkBonus = G._cuiHuaAtkBonus || {};
+                G._cuiHuaAtkBonus[key] = atkBonus;
             }
             if (defReduction > 0 && key !== 'player') {
-                applyStatus(key, { 名称: '摧花·对主减伤', 数值: defReduction, 剩余回合: -1, 来源: '摧花领域' });
+                G._cuiHuaDefReduction = G._cuiHuaDefReduction || {};
+                G._cuiHuaDefReduction[key] = defReduction;
             }
         }
     }
 
     if (hasCaiHua) {
-        const isSlave = (G.statuses[key] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称));
-        if (isSlave) {
-            const dmgBonus = 0.1 * G.miqingCount;
-            const dmgReduction = 0.05 * G.miqingCount;
+        log(`${c.name} 的【采花领域】展开！女性奴隶角色伤害+${Math.round(0.05*G.miqingCount*100)}%，受伤-${Math.round(0.03*G.miqingCount*100)}%`,'l-buff');
+        applyStatus(key, { 名称: '采花领域', 数值: 0, 剩余回合: -1, 来源: '采花领域' });
+        const isFemaleSlave = (G.statuses[key] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称)) && (c.gender === '女' || c.gender === 'female');
+        if (isFemaleSlave) {
+            const dmgBonus = 0.05 * G.miqingCount;
+            const dmgReduction = 0.03 * G.miqingCount;
             if (dmgBonus > 0) {
-                applyStatus(key, { 名称: '采花·增伤', 数值: dmgBonus, 剩余回合: -1, 来源: '采花领域' });
+                G._caiHuaDmgBonus = G._caiHuaDmgBonus || {};
+                G._caiHuaDmgBonus[key] = dmgBonus;
             }
             if (dmgReduction > 0) {
-                applyStatus(key, { 名称: '采花·减伤', 数值: dmgReduction, 剩余回合: -1, 来源: '采花领域' });
+                G._caiHuaDmgReduction = G._caiHuaDmgReduction || {};
+                G._caiHuaDmgReduction[key] = dmgReduction;
             }
         }
     }
@@ -3411,14 +3420,19 @@ function getNormalAtkBskill(atkKey){
 
 // 检查目标是否有匹配的免伤状态，返回匹配的状态或null
 // bskillName: 基本功名（拳掌/剑/刀/暗器/棍枪/内功底蕴）
+// 回合制（数值=0）：持续剩余回合轮
+// 次数制（数值>0）：抵挡数值次，每次扣1
 function checkImmunity(defKey, bskillName){
   const sts=G.statuses[defKey]||[];
   // 全类型免伤
   const full=sts.find(s=>s.名称==='免伤');
   if(full) return full;
-  // 分类免伤
-  const immName=BSKILL_TO_IMM[bskillName];
-  if(immName){const sp=sts.find(s=>s.名称===immName);if(sp)return sp;}
+  // 分类免伤（免伤·拳掌/免伤·剑/免伤·刀/免伤·暗器/免伤·棍枪）
+  if(bskillName){
+    const immName='免伤·'+bskillName;
+    const sp=sts.find(s=>s.名称===immName);
+    if(sp) return sp;
+  }
   return null;
 }
 
@@ -3694,33 +3708,35 @@ function _applySlaveBonuses(atkKey, tgtKey, dmg) {
 
     const isFemaleTgt = (gA(tgtKey)?.gender === '女' || gA(tgtKey)?.gender === 'female');
     if (isFemaleTgt) {
-        const cuiAtk = (G.statuses[atkKey] || []).find(s => s.名称 === '摧花·受击加成');
+        const cuiAtk = G._cuiHuaAtkBonus?.[atkKey];
         if (cuiAtk) {
-            dmg = Math.floor(dmg * (1 + cuiAtk.数值));
+            dmg = Math.floor(dmg * (1 + cuiAtk));
         }
     }
 
     const isFemaleAtk = (gA(atkKey)?.gender === '女' || gA(atkKey)?.gender === 'female');
     if (isFemaleAtk && tgtKey === 'player') {
-        const cuiDef = (G.statuses[atkKey] || []).find(s => s.名称 === '摧花·对主减伤');
+        const cuiDef = G._cuiHuaDefReduction?.[atkKey];
         if (cuiDef) {
-            dmg = Math.floor(dmg * (1 - cuiDef.数值));
+            dmg = Math.floor(dmg * (1 - cuiDef));
         }
     }
 
     const isAtkSlave = (G.statuses[atkKey] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称));
-    if (isAtkSlave) {
-        const caiAtk = (G.statuses[atkKey] || []).find(s => s.名称 === '采花·增伤');
+    const isAtkFemale = (gA(atkKey)?.gender === '女' || gA(atkKey)?.gender === 'female');
+    if (isAtkSlave && isAtkFemale) {
+        const caiAtk = G._caiHuaDmgBonus?.[atkKey];
         if (caiAtk) {
-            dmg = Math.floor(dmg * (1 + caiAtk.数值));
+            dmg = Math.floor(dmg * (1 + caiAtk));
         }
     }
 
     const isTgtSlave = (G.statuses[tgtKey] || []).some(s => ['死亡奴隶', '玩物', '伴侣'].includes(s.名称));
-    if (isTgtSlave) {
-        const caiDef = (G.statuses[tgtKey] || []).find(s => s.名称 === '采花·减伤');
+    const isTgtFemale = (gA(tgtKey)?.gender === '女' || gA(tgtKey)?.gender === 'female');
+    if (isTgtSlave && isTgtFemale) {
+        const caiDef = G._caiHuaDmgReduction?.[tgtKey];
         if (caiDef) {
-            dmg = Math.floor(dmg * (1 - caiDef.数值));
+            dmg = Math.floor(dmg * (1 - caiDef));
         }
     }
 
@@ -3755,6 +3771,16 @@ async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
     FxEngine.spawn(new FxRing({cx:immCx,cy:immCy,radius:50,color:[0,0,92],width:3,life:450}));
     FxEngine.spawn(new FxRing({cx:immCx,cy:immCy,radius:30,color:[0,0,85],width:2,life:350,delay:80}));
     G.battleLog.push({t:'IMM',a:atk.name,v:tgt.name,st:imm.名称});
+    // 次数制免伤：扣减数值，归零则移除
+    if(imm.数值>0){
+      imm.数值--;
+      log(`${tgt.name}【${imm.名称}】剩余 ${imm.数值} 次`,'l-buff');
+      if(imm.数值<=0){
+        G.statuses[tgtKey]=G.statuses[tgtKey].filter(s=>s!==imm);
+        log(`${tgt.name}【${imm.名称}】效果已耗尽`,'l-buff');
+      }
+      updateCard(tgtKey);
+    }
     endTurn(atkKey); return;
   }
   const str=getAttr(atkKey,'力量');
@@ -3832,6 +3858,7 @@ function buildKfPanel(){
   for(const kfName of c.kungfu){
     const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
     if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    if(kf.类别==='奴隶神功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
     const cd=G.cds[key]?.[kfName]||0, mpOk=c.mp.cur>=kf.消耗内力, cdOk=cd<=0;
     const off=!mpOk||!cdOk;
     const cdDisplay=cd;
@@ -4095,6 +4122,7 @@ function showSsbPanel(atkKey,step,firstKfName){
     if(step===2&&kfName===firstKfName)continue;
     const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
     if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    if(kf.类别==='奴隶神功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
     const cd=G.cds[atkKey]?.[kfName]||0;
     const mpOk=curMp>=kf.消耗内力;
     const cdOk=cd<=0;
@@ -4207,6 +4235,7 @@ async function aiExecuteSsb(atkKey){
     if(kfName==='双手互搏')continue;
     var kf=KUNGFU_LIB[kfName]; if(!kf)continue;
     if(kf.类别==='内功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
+    if(kf.类别==='奴隶神功'&&(kf.影响状态?.影响回合??-1)===-1)continue;
     var cd=G.cds[atkKey]?.[kfName]||0;
     if(cd>0||c.mp.cur<kf.消耗内力)continue;
     avail.push({name:kfName,kf:kf});
@@ -4581,6 +4610,16 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
       FxEngine.spawn(new FxRing({cx:immCx,cy:immCy,radius:50,color:[0,0,92],width:3,life:450}));
       FxEngine.spawn(new FxRing({cx:immCx,cy:immCy,radius:30,color:[0,0,85],width:2,life:350,delay:80}));
       G.battleLog.push({t:'IMM',a:atk.name,v:tgt.name,sk:kfName,st:kfImm.名称});
+      // 次数制免伤：扣减数值，归零则移除
+      if(kfImm.数值>0){
+        kfImm.数值--;
+        log(`${tgt.name}【${kfImm.名称}】剩余 ${kfImm.数值} 次`,'l-buff');
+        if(kfImm.数值<=0){
+          G.statuses[tgtKey]=G.statuses[tgtKey].filter(s=>s!==kfImm);
+          log(`${tgt.name}【${kfImm.名称}】效果已耗尽`,'l-buff');
+        }
+        updateCard(tgtKey);
+      }
       return;
     }
   }
@@ -4735,16 +4774,16 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
     } else if(s.名称==='斗转星移'||Math.random()<(s.成功率||0)){
       // 净化：清除目标负面状态
       if(s.名称==='净化'){
-        const KEEP=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常','速度上升','龙象之力'];
+        const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','灼烧','内伤','失明','攻击下降','防御下降','伤害加深','重伤','定身','麻痹','诅咒','嘲讽','恨之牺牲·降防'];
         const before=(G.statuses[tgtKey]||[]).length;
-        G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(x=>KEEP.includes(x.名称)||/^免伤/.test(x.名称));
+        G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(x=>!DEBUFFS.includes(x.名称)&&!x.名称.startsWith('流血·')&&!x.名称.startsWith('中毒·')&&!x.名称.startsWith('灼烧·')&&!x.名称.startsWith('内伤·'));
         const removed=before-(G.statuses[tgtKey]||[]).length;
         log(`${tgt.name} 被净化，清除 ${removed} 个负面状态`,'l-buff');
         updateCard(tgtKey);
       } else if(s.名称==='驱散'){
         // 驱散增益：清除敌人身上的buff
         // 数值=0 表示全部清除，>0 表示清除N个随机buff
-        const BUFF_NAMES=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
+        const BUFF_NAMES=['攻击上升','防御上升','反弹','反击','斗转星移','力量上升','身法上升','闪避提升','闪避上升','速度上升','龙象之力'];
         const targetBuffs=G.statuses[tgtKey]||[];
         const buffs=targetBuffs.filter(x=>BUFF_NAMES.includes(x.名称)||/^免伤/.test(x.名称)||/^护身·/.test(x.名称));
         const dispelCount=s.数值||0;
@@ -4950,7 +4989,7 @@ function doItem(tgtKey,name,item){
     const type=item.类型||'回血';
     if(type==='回血'){c.hp.cur=Math.min(c.hp.max,c.hp.cur+val);log(`${user?.name||''} 对 ${c.name} 使用${name}，回复 ${val} 气血`,'l-heal');floatDmg(q(`card-${tgtKey}`),`+${val}`,'hsl(158,50%,55%)');fxHeal(q(`card-${tgtKey}`),'hp');}
     else if(type==='回内'){c.mp.cur=Math.min(c.mp.max,c.mp.cur+val);log(`${user?.name||''} 对 ${c.name} 使用${name}，回复 ${val} 内力`,'l-heal');floatDmg(q(`card-${tgtKey}`),`+${val}`,'hsl(210,70%,55%)');fxHeal(q(`card-${tgtKey}`),'mp');}
-    else if(type==='回状态'){const KEEP=['攻击上升','防御上升','回血','回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常'];G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(s=>KEEP.includes(s.名称)||/^免伤/.test(s.名称));log(`${user?.name||''} 对 ${c.name} 使用${name}，清除负面状态`,'l-buff');floatDmg(q(`card-${tgtKey}`),'净化','hsl(42,80%,55%)',14);fxHeal(q(`card-${tgtKey}`),'status');}
+    else if(type==='回状态'){const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','灼烧','内伤','失明','攻击下降','防御下降','伤害加深','重伤','定身','麻痹','诅咒','嘲讽','恨之牺牲·降防'];G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(s=>!DEBUFFS.includes(s.名称)&&!s.名称.startsWith('流血·')&&!s.名称.startsWith('中毒·')&&!s.名称.startsWith('灼烧·')&&!s.名称.startsWith('内伤·'));log(`${user?.name||''} 对 ${c.name} 使用${name}，清除负面状态`,'l-buff');floatDmg(q(`card-${tgtKey}`),'净化','hsl(42,80%,55%)',14);fxHeal(q(`card-${tgtKey}`),'status');}
   }
   G.battleLog.push({t:'ITEM',a:user?.name||'',item:name,v:c.name});
   G.itemsUsed[name]=(G.itemsUsed[name]||0)+1;
@@ -5063,7 +5102,7 @@ function _isHeal(kf){return kf.影响状态&&(kf.影响状态.名称==='回血'|
 function _isCtrl(kf){const C=['点穴','眩晕','冰冻','封穴'];return kf.影响状态&&C.includes(kf.影响状态.名称);}
 function _isDispel(kf){return kf.影响状态&&kf.影响状态.名称==='驱散';}
 function _tgtHasBuff(tKey){
-  const BUFF_NAMES=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','连击','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
+  const BUFF_NAMES=['攻击上升','防御上升','反弹','反击','斗转星移','力量上升','身法上升','闪避提升','闪避上升','速度上升','龙象之力'];
   return(G.statuses[tKey]||[]).some(s=>BUFF_NAMES.includes(s.名称)||/^免伤/.test(s.名称)||/^护身·/.test(s.名称));
 }
 function _isAoe(kf){const r=kf.作用范围||'';return r.includes('群体')||r.includes('全体');}
@@ -5848,7 +5887,7 @@ function sendBattleRecord(){
     if(ta){
       const nativeSetter=Object.getOwnPropertyDescriptor(window.parent.HTMLTextAreaElement.prototype,'value').set;
       nativeSetter.call(ta,record);
-      ta.dispatchEvent(new Event('input',{bubbles:true}));
+      try{ta.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:record}));}catch(e){ta.dispatchEvent(new Event('input',{bubbles:true}));}
     }
   }catch(e){console.warn('写入输入框失败',e);}
 }
@@ -5924,7 +5963,7 @@ function renderSt(key){
   const BUFFS=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
-    const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称);
+    const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称)||/^摧花·/.test(s.名称)||/^采花·/.test(s.名称);
     const ctrl=CTRLS.includes(s.名称);
     const cls=b?'s-buff':ctrl?'s-ctrl':'s-debuff';
 	// 领袖气场特殊美化
@@ -5945,6 +5984,12 @@ function renderSt(key){
       return `<span class="s-bd ${cls}" title="${tip}">${label}</span>`;
     }
     const r=s.剩余回合===-1?'∞':s.剩余回合;
+    // 免伤：区分次数制（数值>0）和回合制（数值=0）
+    if(/^免伤/.test(s.名称)){
+      const label=s.名称;
+      if(s.数值>0) return `<span class="s-bd ${cls}" title="${label} 剩余 ${s.数值} 次">${label}(${s.数值}次)</span>`;
+      return `<span class="s-bd ${cls}">${label}(${r})</span>`;
+    }
     return `<span class="s-bd ${cls}">${s.名称}(${r})</span>`;
   }).join('');
 }
