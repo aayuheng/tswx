@@ -4031,14 +4031,14 @@ function buildKfPanel(){
   }
   // ── 装备技能（传说神兵） ──
   // 扫描 KUNGFU_LIB 中所有带 _equipSkill 标记的技能
-  const c = gA(key);
-  if (c && c.weaponName) {
+  const actor = gA(key);
+  if (actor && actor.weaponName) {
     G.equipSkillUsed = G.equipSkillUsed || {};
     for (const [skName, skData] of Object.entries(KUNGFU_LIB)) {
       const eqCfg = skData._equipSkill;
       if (!eqCfg) continue;
       // 检查武器名是否匹配（_equipSkill.weapon 指定对应武器）
-      if (eqCfg.weapon && eqCfg.weapon !== c.weaponName) continue;
+      if (eqCfg.weapon && eqCfg.weapon !== actor.weaponName) continue;
       const used = G.equipSkillUsed[key]?.[skName] || false;
       if (!G.equipSkillUsed[key]) G.equipSkillUsed[key] = {};
       const row = document.createElement('div');
