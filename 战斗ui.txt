@@ -308,6 +308,34 @@ body {
   0%,100% { box-shadow: 0 0 8px hsla(355,62%,44%,0.3); }
   50%     { box-shadow: 0 0 16px hsla(355,62%,44%,0.6); }
 }
+/* ── 装备技能波纹动画 ── */
+@keyframes equipSkillRipple {
+  0%   { box-shadow: 0 0 4px var(--gold-glow), 0 0 8px hsla(42,72%,55%,0.15); }
+  50%  { box-shadow: 0 0 14px var(--gold-glow), 0 0 28px hsla(42,72%,55%,0.25), 0 0 48px hsla(42,72%,55%,0.08); }
+  100% { box-shadow: 0 0 4px var(--gold-glow), 0 0 8px hsla(42,72%,55%,0.15); }
+}
+.equip-skill-row {
+  position: relative;
+  border-top: 1px solid var(--gold) !important;
+  background: linear-gradient(135deg, hsla(42,72%,55%,0.06), hsla(42,72%,55%,0.02)) !important;
+  animation: equipSkillRipple 2.5s ease-in-out infinite;
+}
+.equip-skill-row::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border: 1px solid rgba(255,215,0,0.12);
+  border-radius: 6px;
+  animation: equipSkillRipple 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+.equip-skill-row.kf-off {
+  animation: none !important;
+  background: none !important;
+}
+.equip-skill-row.kf-off::before {
+  display: none;
+}
 
 /* ── 状态标签 ── */
 .st-row { display:flex; flex-wrap:wrap; gap:3px; min-height:16px; margin-top:4px; }
@@ -2892,6 +2920,27 @@ for (const stName of persistentAlly) {
       });
       console.log(`${enemyName} 的[领袖气场]爆发了！`);
     }
+
+    // ── 自动扫描武功中的永久被动状态 ──
+    // 遍历角色的所有武功，将 影响回合=-1 且不是锁血/限伤/混乱的永久状态自动挂上
+    const allKf = charData.武功 || [];
+    for (const kfName of allKf) {
+      const kf = KUNGFU_LIB[kfName];
+      if (!kf || !kf.影响状态 || kf.影响状态.影响回合 !== -1) continue;
+      const stName = kf.影响状态.名称;
+      if (!stName || stName === '无') continue;
+      // 跳过锁血/限伤/混乱——这些需要主动触发或阈值触发，不从开局自动挂
+      if (stName === '锁血' || stName === '限伤' || stName === '混乱') continue;
+      // 跳过免伤系列——免伤应由主动技能或装备提供
+      if (stName === '免伤' || stName.startsWith('免伤·')) continue;
+      applyStatus(key, {
+        名称: stName,
+        数值: kf.影响状态.数值 || 0,
+        剩余回合: -1,
+        来源: kfName
+      });
+      console.log(`${enemyName} 被动【${stName}】已自动挂载`);
+    }
   }
   // ── 心魔战：敌人仅一个且名字以[心魔]开头 → 队友不参战 ──
   if(G.eKeys.length===1){
@@ -3272,6 +3321,20 @@ function onAct(type){
   clearAllPanels(); clearBtns();
 
   if(type==='attack'){
+  // ★ 混乱判定：手动操作时混乱攻击友方
+  const _confSt = (G.statuses[G.curKey] || []).find(s => s.名称 === '混乱');
+  if (_confSt && Math.random() < (_confSt.数值 || 0.5)) {
+    const allies = aliveP().filter(k => k !== G.curKey);
+    if (allies.length > 0) {
+      const betrayTgt = allies[Math.floor(Math.random() * allies.length)];
+      const atk = gA(G.curKey);
+      log(`${atk.name} 陷入【混乱】，攻击友方 ${gA(betrayTgt).name}！`, 'l-dmg');
+      floatDmg(q(`card-${betrayTgt}`), '混乱攻击', 'hsl(280,70%,60%)', '16px');
+      clearAllPanels(); clearBtns();
+      doNormalAttack(G.curKey, betrayTgt);
+      return;
+    }
+  }
   const tauntSt = (G.statuses[G.curKey] || []).find(s => s.名称 === '嘲讽');
   if (tauntSt) {
     // 被嘲讽：强制攻击嘲讽来源
@@ -3436,6 +3499,9 @@ function checkImmunity(defKey, bskillName){
   // 全类型免伤
   const full=sts.find(s=>s.名称==='免伤');
   if(full) return full;
+  // 爱之牺牲·护盾（独立免伤，不与其他免伤冲突覆盖）
+  const loveShield = sts.find(s => s.名称 === '爱之牺牲·护盾');
+  if (loveShield) return loveShield;
   // 分类免伤（免伤·拳掌/免伤·剑/免伤·刀/免伤·暗器/免伤·棍枪）
   if(bskillName){
     const immName='免伤·'+bskillName;
@@ -3873,7 +3939,9 @@ function buildKfPanel(){
       if(isPassive)continue;
     }
     const cd=G.cds[key]?.[kfName]||0, mpOk=c.mp.cur>=kf.消耗内力, cdOk=cd<=0;
-    const off=!mpOk||!cdOk;
+    // ★ 消耗气血判定
+    const hpOk = (kf.消耗气血 || 0) > 0 ? c.hp.cur > (kf.消耗气血 || 0) : true;
+    const off=!mpOk||!cdOk||!hpOk;
     const cdDisplay=cd;
     const rng=(kf.作用范围||'').replace('敌方','敌').replace('我方','友').replace('群体','群').replace('仅我','己');
     const totalCd=kf.冷却?kf.冷却[0]:0;
@@ -3918,10 +3986,11 @@ function buildKfPanel(){
         </div>
         <div class="kf-desc">${kf.描述||''}${stInfo?` [${stInfo}]`:''}</div>
       </div>
-      <div class="kf-mp">内力<br>${kf.消耗内力}</div>
+      <div class="kf-mp">${kf.消耗气血?'气血':'内力'}<br>${kf.消耗气血||kf.消耗内力}</div>
       <div class="kf-cd ${cdOk?'rdy':'cld'}">${cdStr}</div>
       <div class="kf-rng">${rng}</div>
-      ${(!mpOk&&cdOk)?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">内力不足</div>':''}
+      ${(!mpOk&&cdOk&&!hpOk)?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">内力不足</div>':''}
+      ${(!hpOk&&cdOk)?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">气血不足</div>':''}
       ${(!cdOk)?`<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">冷却中：${cdDisplay}/${totalCd}</div>`:''}
     `;
     if(!off)row.addEventListener('click',()=>selectKf(key,kfName,kf));
@@ -3960,11 +4029,78 @@ function buildKfPanel(){
       panel.appendChild(row);
     }
   }
+  // ── 装备技能（传说神兵） ──
+  // 扫描 KUNGFU_LIB 中所有带 _equipSkill 标记的技能
+  const c = gA(key);
+  if (c && c.weaponName) {
+    G.equipSkillUsed = G.equipSkillUsed || {};
+    for (const [skName, skData] of Object.entries(KUNGFU_LIB)) {
+      const eqCfg = skData._equipSkill;
+      if (!eqCfg) continue;
+      // 检查武器名是否匹配（_equipSkill.weapon 指定对应武器）
+      if (eqCfg.weapon && eqCfg.weapon !== c.weaponName) continue;
+      const used = G.equipSkillUsed[key]?.[skName] || false;
+      if (!G.equipSkillUsed[key]) G.equipSkillUsed[key] = {};
+      const row = document.createElement('div');
+      row.className = 'kf-row equip-skill-row' + (used ? ' kf-off' : '');
+      row.style.position = 'relative';
+      row.innerHTML = `
+        <div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <span class="kf-name" style="color:var(--gold-bright)">◆ ${skName}</span>
+            <span class="kf-type 绝学">装备技</span>
+          </div>
+          <div class="kf-desc">${skData.描述||''}</div>
+        </div>
+        <div class="kf-mp">—</div>
+        <div class="kf-cd ${used?'cld':'rdy'}">${used?'已使用':'就绪'}</div>
+        <div class="kf-rng">敌单</div>
+        ${used?'<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#e44;font-size:15px;font-weight:bold;text-shadow:0 0 6px rgba(0,0,0,0.8);pointer-events:none">已使用</div>':''}
+      `;
+      if (!used) {
+        row.addEventListener('click', () => {
+          G.equipSkillUsed[key][skName] = true;
+          selectKf(key, skName, skData);
+        });
+      }
+      panel.appendChild(row);
+    }
+  }
   if(!panel.querySelector('.kf-row:not(.kf-off)'))
     panel.insertAdjacentHTML('afterbegin','<div style="padding:8px;text-align:center;color:var(--parchment2);font-size:11px">无可用武功</div>');
 }
 
 function selectKf(key,kfName,kf){
+  // ★ 混乱判定：选技能时混乱攻击友方
+  const _confSt = (G.statuses[key] || []).find(s => s.名称 === '混乱');
+  if (_confSt && Math.random() < (_confSt.数值 || 0.5)) {
+    const range = kf.作用范围 || '敌方单体';
+    const isHeal = range.includes('我方') || range.includes('仅我') || range.includes('友');
+    // 如果是治疗/辅助类技能，混乱时随机选队友
+    if (isHeal) {
+      const allies = aliveP().filter(k => k !== key);
+      if (allies.length > 0) {
+        const betrayTgt = allies[Math.floor(Math.random() * allies.length)];
+        const atk = gA(key);
+        log(`${atk.name} 陷入【混乱】，辅助技能误加到 ${gA(betrayTgt).name}！`, 'l-dmg');
+        floatDmg(q(`card-${betrayTgt}`), '混乱误加', 'hsl(280,70%,60%)', '14px');
+        clearAllPanels(); clearBtns();
+        doKungfu(key, kfName, [betrayTgt]);
+        return;
+      }
+    }
+    // 攻击技能混乱时打队友
+    const allies = aliveP().filter(k => k !== key);
+    if (allies.length > 0) {
+      const betrayTgt = allies[Math.floor(Math.random() * allies.length)];
+      const atk = gA(key);
+      log(`${atk.name} 陷入【混乱】，攻击友方 ${gA(betrayTgt).name}！`, 'l-dmg');
+      floatDmg(q(`card-${betrayTgt}`), '混乱攻击', 'hsl(280,70%,60%)', '16px');
+      clearAllPanels(); clearBtns();
+      doKungfu(key, kfName, [betrayTgt]);
+      return;
+    }
+  }
   // ===== 嘲讽检测 =====
   const tauntSt = (G.statuses[key] || []).find(s => s.名称 === '嘲讽');
   let forcedTarget = null;
@@ -4013,8 +4149,26 @@ function selectKf(key,kfName,kf){
 function doKungfu(atkKey,kfName,tgtKeys){
   const kf=KUNGFU_LIB[kfName]; if(!kf){endTurn(atkKey);return;}
   const atk=gA(atkKey); if(!atk){endTurn(atkKey);return;}
-  if(atk.mp.cur<kf.消耗内力){log(`${atk.name} 内力不足！`,'l-miss');endTurn(atkKey);return;}
-  atk.mp.cur=Math.max(0,atk.mp.cur-kf.消耗内力); updateCard(atkKey);
+  // ★ 消耗检查：支持 消耗内力 和 消耗气血 两种
+  const mpCost = kf.消耗内力 || 0;
+  const hpCost = kf.消耗气血 || 0;
+  if (mpCost > 0 && atk.mp.cur < mpCost) {
+    log(`${atk.name} 内力不足！`, 'l-miss');
+    endTurn(atkKey); return;
+  }
+  if (hpCost > 0 && atk.hp.cur <= hpCost) {
+    log(`${atk.name} 气血不足，无法施展！`, 'l-miss');
+    endTurn(atkKey); return;
+  }
+  // 先扣消耗（气血优先扣，防止扣内力时气血不足）
+  if (hpCost > 0) { atk.hp.cur -= hpCost; updateCard(atkKey); }
+  if (mpCost > 0) { atk.mp.cur = Math.max(0, atk.mp.cur - mpCost); updateCard(atkKey); }
+  // 如果消耗气血后自己死了，技能中断
+  if (!atk.alive || atk.hp.cur <= 0) {
+    atk.alive = false;
+    log(`${atk.name} 因气血耗尽而倒下！`, 'l-sys');
+    endTurn(atkKey); return;
+  }
   // ── 小无相功特殊处理 ──
   if(kfName==='小无相功'){
     if((kf.冷却?.[0]||0)>0){ G.cds[atkKey]=G.cds[atkKey]||{}; G.cds[atkKey][kfName]=kf.冷却[0]+1; }
@@ -4446,7 +4600,89 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
       return;
   }
 
-  // ── 爱之牺牲 ──（新增）
+  // ── 通用真实伤害处理（_trueDamage 配置） ──
+  const tdConfig = kf._trueDamage;
+  if (tdConfig) {
+    if (atk.mp.cur < (kf.消耗内力 || 0)) {
+      log(`${atk.name} 内力不足`, 'l-miss');
+      endTurn(atkKey);
+      return;
+    }
+    atk.mp.cur -= (kf.消耗内力 || 0);
+    updateCard(atkKey);
+
+    // 解析配置：支持简写模式 和 完整配置对象
+    let cfg;
+    if (tdConfig.mode === 'self_half_to_all') {
+      // 简写：广陵散曲（自损一半当前气血，全体敌人等量真实伤害）
+      cfg = { selfCost: 0.50, selfCostBase: 'current', damage: 0, damageBase: 'self_cost', target: 'all_enemies' };
+    } else {
+      // 完整配置对象
+      cfg = tdConfig;
+    }
+
+    // ── 自残处理 ──
+    let selfCostValue = 0;
+    if (cfg.selfCost && cfg.selfCost > 0) {
+      const base = cfg.selfCostBase === 'max' ? atk.hp.max : atk.hp.cur;
+      selfCostValue = Math.floor(base * cfg.selfCost);
+      if (selfCostValue <= 0) {
+        log(`${atk.name} 气血不足，无法施展`, 'l-miss');
+        endTurn(atkKey);
+        return;
+      }
+      atk.hp.cur -= selfCostValue;
+      if (atk.hp.cur <= 0) atk.hp.cur = 1; // 至少留1血
+      updateCard(atkKey);
+      log(`${atk.name} 自损 ${selfCostValue} 气血`, 'l-sys');
+      floatDmg(q(`card-${atkKey}`), `-${selfCostValue}`, 'hsl(0,70%,50%)', '16px');
+    }
+
+    // ── 计算伤害值 ──
+    let dmg = 0;
+    const tgts = (cfg.target === 'all_enemies') ? aliveE() : [tgtKey];
+    for (const eKey of tgts) {
+      const e = gA(eKey);
+      if (!e || !e.alive) continue;
+
+      if (cfg.damageBase === 'self_cost') {
+        // 伤害 = 自损值 × 倍率（默认1倍）
+        dmg = Math.floor(selfCostValue * (cfg.damageMul || 1));
+      } else if (cfg.damageBase === 'max') {
+        // 伤害 = 目标最大气血 × 比例
+        dmg = Math.floor(e.hp.max * (cfg.damage || 0));
+      } else if (cfg.damageBase === 'current') {
+        // 伤害 = 目标当前气血 × 比例
+        dmg = Math.floor(e.hp.cur * (cfg.damage || 0));
+      } else {
+        // 固定值
+        dmg = Math.floor(cfg.damage || 0);
+      }
+
+      if (dmg > 0) {
+        e.hp.cur = Math.max(0, e.hp.cur - dmg);
+        updateCard(eKey);
+        floatDmg(q(`card-${eKey}`), `-${dmg}`, 'hsl(0,0%,90%)', '18px');
+        log(`${e.name} 受到 ${dmg} 点真实伤害！`, 'l-crit');
+        G.battleLog.push({ t: 'TRUE_DMG', a: atk.name, v: e.name, d: dmg, sk: kfName });
+        if (e.hp.cur <= 0) {
+          e.alive = false;
+          updateCard(eKey);
+          log(`${e.name} 倒下了！`, 'l-sys');
+          grantKillExp(eKey);
+        }
+      }
+    }
+
+    if ((kf.冷却?.[0] || 0) > 0) {
+      G.cds[atkKey] = G.cds[atkKey] || {};
+      G.cds[atkKey][kfName] = kf.冷却[0] + 1;
+    }
+    endTurn(atkKey);
+    return;
+  }
+
+  // ── 爱之牺牲 ──（改为通用免伤机制）
   if (kfName === '爱之牺牲') {
       atk.hp.cur = 1;
       updateCard(atkKey);
@@ -4457,9 +4693,10 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
       for (const tKey of targets) {
           const target = gA(tKey);
           if (!target || !target.alive) continue;
-          applyStatus(tKey, { 名称: '爱之牺牲·护盾', 数值: 0, 剩余回合: -1, 来源: '爱之牺牲' });
-          log(`${target.name} 获得爱之护盾！`, 'l-buff');
-          floatDmg(q(`card-${tKey}`), '护盾', 'hsl(200,70%,60%)', '14px');
+          // 爱之牺牲·护盾：独立免伤状态，不与其他免伤冲突
+          applyStatus(tKey, { 名称: '爱之牺牲·护盾', 数值: 3, 剩余回合: -1, 来源: '爱之牺牲' });
+          log(`${target.name} 获得爱之护盾，免疫3次伤害！`, 'l-buff');
+          floatDmg(q(`card-${tKey}`), '爱之护盾×3', 'hsl(200,70%,60%)', '16px');
       }
 
       if ((kf.冷却?.[0] || 0) > 0) {
@@ -4586,6 +4823,13 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
     if(_atkDn2)dmg*=1-(_atkDn2.数值||0.2);
     const _xhmg2=(G.statuses[atkKey]||[]).find(s=>s.名称==='血海魔功');
     if(_xhmg2)dmg*=1+(_xhmg2.数值||0.5);
+    // ★ 愈战愈勇：友方倒下越多伤害越高
+    const _yzBuff = (G.statuses[atkKey]||[]).find(s => s.名称 === '愈战愈勇');
+    if (_yzBuff && _yzBuff.数值 > 0) {
+      dmg *= (1 + _yzBuff.数值);
+      log(`${atk.name}【愈战愈勇】伤害×${(1+_yzBuff.数值).toFixed(2)}`, 'l-crit');
+      floatDmg(q(`card-${atkKey}`), `愈战愈勇`, 'hsl(0,80%,55%)', '14px');
+    }
   }
 // ---- 天枢星耀：星斗剑法伤害 ×1.3 ----
 const tianshuSt = (G.statuses[atkKey] || []).find(s => s.名称 === '天枢星耀');
@@ -5050,14 +5294,34 @@ function autoAct(key){
   const tgtKey=es[Math.floor(Math.random()*es.length)];
   const sealed=(G.statuses[key]||[]).some(s=>s.名称==='封穴');
   let usedKf=null;
+
+  // ★ 混乱判定：自动模式下混乱时攻击友方
+  const _confSt = (G.statuses[key] || []).find(s => s.名称 === '混乱');
+  if (_confSt && Math.random() < (_confSt.数值 || 0.5)) {
+    const allies = aliveP().filter(k => k !== key);
+    if (allies.length > 0) {
+      const betrayTgt = allies[Math.floor(Math.random() * allies.length)];
+      log(`${c.name} 陷入【混乱】，攻击友方 ${gA(betrayTgt).name}！`, 'l-dmg');
+      floatDmg(q(`card-${betrayTgt}`), '混乱攻击', 'hsl(280,70%,60%)', '16px');
+      doNormalAttack(key, betrayTgt);
+      return;
+    }
+  }
   if(!sealed){
     const hpPct=c.hp.cur/c.hp.max;
     const avail=[];
     for(const kfName of c.kungfu||[]){
-      const kf=KUNGFU_LIB[kfName]; if(!kf||kf.消耗内力===0)continue;
+      const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
+      // ★ 跳过纯被动（无消耗、无基础效果、影响回合=-1的永久状态）
+      if(kf.消耗内力===0&&!kf.消耗气血&&kf.基础效果值===0&&(!kf.影响状态||kf.影响状态.影响回合===-1))continue;
       if(kf.类别==='轻功')continue;
       const cd=G.cds[key]?.[kfName]||0;
-      if(cd>0||c.mp.cur<kf.消耗内力)continue;
+      // ★ 消耗检查：内力不足或气血不足时跳过
+      const mpCost = kf.消耗内力 || 0;
+      const hpCost = kf.消耗气血 || 0;
+      if (cd > 0) continue;
+      if (mpCost > 0 && c.mp.cur < mpCost) continue;
+      if (hpCost > 0 && c.hp.cur <= hpCost) continue;
       avail.push({name:kfName,kf});
     }
     // 复制武功优先使用
@@ -5082,7 +5346,11 @@ function autoAct(key){
     if(usedKf==='小无相功'){ doKungfu(key,'小无相功',[tgtKey]); return; }
     if(usedKf==='双手互搏'){ doKungfu(key,'双手互搏',[key]); return; }
     const kf=KUNGFU_LIB[usedKf];
-    c.mp.cur=Math.max(0,c.mp.cur-kf.消耗内力); updateCard(key);
+    // ★ 消耗气血/内力（NPC用技能时也扣）
+    const _mpCost = kf.消耗内力 || 0;
+    const _hpCost = kf.消耗气血 || 0;
+    if (_hpCost > 0) { c.hp.cur -= _hpCost; updateCard(key); if (!c.alive || c.hp.cur <= 0) { c.alive = false; endTurn(key); return; } }
+    if (_mpCost > 0) { c.mp.cur = Math.max(0, c.mp.cur - _mpCost); updateCard(key); }
     const range=kf.作用范围||'';
     const isAlly=range.includes('我方')||range.includes('仅我');
     const pool=isAlly?aliveP():aliveE();
@@ -5147,7 +5415,23 @@ for (const k of ps) {
 }
 
 let tgtKey;
-if (taunter && gA(taunter)?.alive) {
+// ★ 混乱判定：混乱时根据概率攻击友方
+const _confSt = (G.statuses[key] || []).find(s => s.名称 === '混乱');
+if (_confSt && Math.random() < (_confSt.数值 || 0.5)) {
+  // 攻击己方（敌人打敌人）
+  const allies = aliveE().filter(k => k !== key);
+  const alliesP = aliveP();
+  if (allies.length > 0) {
+    tgtKey = allies[Math.floor(Math.random() * allies.length)];
+    log(`${gA(key).name} 陷入【混乱】，攻击友方 ${gA(tgtKey).name}！`, 'l-dmg');
+    floatDmg(q(`card-${tgtKey}`), '混乱攻击', 'hsl(280,70%,60%)', '16px');
+  } else if (alliesP.length > 0) {
+    // 没有友方就正常攻击敌人
+    tgtKey = alliesP[Math.floor(Math.random() * alliesP.length)];
+  } else {
+    tgtKey = ps[Math.floor(Math.random() * ps.length)];
+  }
+} else if (taunter && gA(taunter)?.alive) {
   // 2. 有嘲讽 → 强制攻击嘲讽者
   tgtKey = taunter;
   log(`${gA(key).name} 被【嘲讽】吸引，攻击 ${gA(taunter).name}`, 'l-buff');
@@ -5179,9 +5463,16 @@ if (taunter && gA(taunter)?.alive) {
     // 收集可用武功
     const avail=[];
     for(const kfName of c.kungfu||[]){
-      const kf=KUNGFU_LIB[kfName]; if(!kf||kf.消耗内力===0)continue;
+      const kf=KUNGFU_LIB[kfName]; if(!kf)continue;
+      // ★ 跳过纯被动（无消耗、无基础效果、影响回合=-1的永久状态）
+      if(kf.消耗内力===0&&!kf.消耗气血&&kf.基础效果值===0&&(!kf.影响状态||kf.影响状态.影响回合===-1))continue;
       const cd=G.cds[key]?.[kfName]||0;
-      if(cd>0||c.mp.cur<kf.消耗内力)continue;
+      // ★ 消耗检查：内力不足或气血不足时跳过
+      const mpCost = kf.消耗内力 || 0;
+      const hpCost = kf.消耗气血 || 0;
+      if (cd > 0) continue;
+      if (mpCost > 0 && c.mp.cur < mpCost) continue;
+      if (hpCost > 0 && c.hp.cur <= hpCost) continue;
       avail.push({name:kfName,kf});
     }
     // 复制武功优先使用
@@ -5229,7 +5520,11 @@ if (taunter && gA(taunter)?.alive) {
     if(usedKf==='小无相功'){ doKungfu(key,'小无相功',[tgtKey]); return; }
     if(usedKf==='双手互搏'){ doKungfu(key,'双手互搏',[key]); return; }
     const kf=KUNGFU_LIB[usedKf];
-    c.mp.cur=Math.max(0,c.mp.cur-kf.消耗内力); updateCard(key);
+    // ★ 消耗气血/内力（enemyAct用技能时也扣）
+    const _mpCost2 = kf.消耗内力 || 0;
+    const _hpCost2 = kf.消耗气血 || 0;
+    if (_hpCost2 > 0) { c.hp.cur -= _hpCost2; updateCard(key); if (!c.alive || c.hp.cur <= 0) { c.alive = false; endTurn(key); return; } }
+    if (_mpCost2 > 0) { c.mp.cur = Math.max(0, c.mp.cur - _mpCost2); updateCard(key); }
     const range=kf.作用范围||'';
     let tgts;
     const isAlly=range.includes('我方')||range.includes('仅我');
@@ -5289,7 +5584,57 @@ function dealDmg(key, dmg) {
   }
 
   // ===== 无替身：正常扣本体 =====
+  // ★ 锁血判定：伤害不能穿透锁血线
+  const _hpLock = (G.statuses[key] || []).find(s => s.名称 === '锁血');
+  if (_hpLock && c.hp.cur > 0) {
+    const lockThreshold = Math.floor(c.hp.max * (_hpLock.数值 || 0.2));
+    // 如果当前血量已低于锁血线，先抬到锁血线
+    if (c.hp.cur < lockThreshold) {
+      c.hp.cur = lockThreshold;
+      log(`${c.name}【锁血】触发，气血从 ${c.hp.cur} 抬升至 ${lockThreshold}`, 'l-heal');
+      floatDmg(q(`card-${key}`), `锁血启动`, 'hsl(120,70%,55%)', '14px');
+      updateCard(key);
+    }
+    const maxDmg = c.hp.cur - lockThreshold;  // 最多能打掉多少血
+    if (maxDmg <= 0) {
+      // 已在锁血线上 → 完全免疫
+      log(`${c.name}【锁血】已到阈值，伤害免疫！`, 'l-buff');
+      floatDmg(q(`card-${key}`), '锁血免疫', 'hsl(120,70%,55%)', '16px');
+      const tgtEl = q(`card-${key}`);
+      if (tgtEl) {
+        const r = tgtEl.getBoundingClientRect();
+        FxEngine.spawn(new FxRing({cx:r.left+r.width/2,cy:r.top+r.height/2,radius:50,color:[0,180,100],width:3,life:450}));
+      }
+      return;
+    }
+    // 伤害超过可承受量 → 截断到锁血线为止
+    if (dmg > maxDmg) {
+      const oldDmg = dmg;
+      dmg = maxDmg;
+      log(`${c.name}【锁血】伤害 ${oldDmg} → ${maxDmg}（锁血${Math.round((_hpLock.数值||0.2)*100)}%线）`, 'l-buff');
+      floatDmg(q(`card-${key}`), `锁血`, 'hsl(120,70%,55%)', '14px');
+    }
+  }
+  const _dmgCap = (G.statuses[key] || []).find(s => s.名称 === '限伤');
+  if (_dmgCap && dmg > 0) {
+    const capHp = Math.floor(c.hp.max * (_dmgCap.数值 || 0.3));
+    if (dmg > capHp) {
+      log(`${c.name}【限伤】伤害 ${dmg} → ${capHp}（上限${Math.round((_dmgCap.数值||0.3)*100)}%）`, 'l-buff');
+      floatDmg(q(`card-${key}`), `限伤`, 'hsl(180,70%,60%)', '14px');
+      dmg = capHp;
+    }
+    // 次数制：扣减
+    if (_dmgCap.剩余回合 !== -1) {
+      _dmgCap.剩余回合--;
+      if (_dmgCap.剩余回合 <= 0) {
+        G.statuses[key] = G.statuses[key].filter(s => s !== _dmgCap);
+        log(`${c.name}【限伤】效果已耗尽`, 'l-buff');
+      }
+    }
+  }
+
   c.hp.cur = Math.max(0, c.hp.cur - dmg);
+
   updateCard(key);
 
   if (c.hp.cur <= 0) {
@@ -5579,7 +5924,7 @@ function processStatusTick(key){
       updateCard(key);
     }
 	if(s.名称 === '领袖气场' && c.alive){
-      const abnormalStatuses = ['点穴','眩晕','冰冻','封穴','失明','攻击下降','防御下降'];
+      const abnormalStatuses = ['点穴','眩晕','冰冻','封穴','失明','攻击下降','防御下降','混乱'];
       // 每回合有10%概率清除身上一个异常状态
       if(Math.random() < 0.10){
         const hasAbnormal = G.statuses[key].some(st => abnormalStatuses.includes(st.名称));
@@ -5613,6 +5958,28 @@ function processStatusTick(key){
       
       log(`${c.name}【奴隶真气护身】触发，随机获得【${randomBuffName}】（1回合）`, 'l-buff');
       floatDmg(q(`card-${key}`), randomBuffName, 'hsl(42,80%,65%)', '17px');
+    }
+    // ★ 混乱：数值为概率(0~1)，判定是否攻击友方（实际逻辑在AI/玩家操作中，这里只做回合末提示）
+    if(s.名称 === '混乱' && c.alive) {
+      const prob = s.数值 || 0.5;
+      log(`${c.name}【混乱】当前混乱概率 ${Math.round(prob*100)}%`, 'l-buff');
+      floatDmg(q(`card-${key}`), `混乱${Math.round(prob*100)}%`, 'hsl(280,70%,60%)', '13px');
+    }
+    // ★ 愈战愈勇：友方倒下越多越强，每回合自动重算
+    if(s.名称 === '愈战愈勇' && c.alive) {
+      const isEnemy = G.eKeys.includes(key);
+      const aliveAllies = isEnemy ? aliveE() : aliveP();
+      const totalAllies = isEnemy ? G.eKeys.length : G.pKeys.length;
+      const fallen = totalAllies - aliveAllies.length;
+      // 基础数值 = 倒下人数 × 每层增幅（默认每层+15%攻击）
+      const perStack = s.来源数值 || 0.15;
+      const newVal = fallen * perStack;
+      if (newVal !== s.数值) {
+        s.数值 = newVal;
+        log(`${c.name}【愈战愈勇】${fallen}人倒下，攻击+${Math.round(newVal*100)}%`, 'l-buff');
+        floatDmg(q(`card-${key}`), `愈战愈勇×${fallen}`, 'hsl(0,80%,55%)', '16px');
+        updateCard(key);
+      }
     }
     if(s.剩余回合!==-1)s.剩余回合--;
   }
