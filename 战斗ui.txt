@@ -4778,6 +4778,10 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
       endTurn(atkKey);
       return;
   }
+  // ★ 双效技能：对友方跳过基础伤害
+  if (kf._dualEffect?.skipBaseDmgOnAlly && G.pKeys.includes(tgtKey)) {
+    // 跳过伤害计算，直接处理状态和 _dualEffect
+  } else {
   const base=kf.基础效果值||0;
   const floatR=kf.伤害浮动||[0.9,1.1];
   // 属性附加影响：字符串，取角色对应属性值
@@ -4927,6 +4931,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
     const effName=kf.影响状态?.名称||'';
     log(fL(FLAVOR.selfBuff,{atk:atk.name,kf:kfName,eff:effName||kf.描述||''}),'l-buff');
   }
+  }
   // 状态附加（名称为"无"时跳过；需要主运内功但未满足时跳过）
   if(kf.影响状态&&kf.影响状态.名称&&kf.影响状态.名称!=='无'&&tgt.alive&&!_kfNerfed){
     // 奴隶之毒：根据队友数量增强概率和DOT数值（新增）
@@ -5038,10 +5043,19 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
       // 净化：清除目标负面状态
       if(s.名称==='净化'){
         const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','灼烧','内伤','失明','攻击下降','防御下降','伤害加深','重伤','定身','麻痹','诅咒','嘲讽','恨之牺牲·降防'];
-        const before=(G.statuses[tgtKey]||[]).length;
-        G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(x=>!DEBUFFS.includes(x.名称)&&!x.名称.startsWith('流血·')&&!x.名称.startsWith('中毒·')&&!x.名称.startsWith('灼烧·')&&!x.名称.startsWith('内伤·'));
-        const removed=before-(G.statuses[tgtKey]||[]).length;
-        log(`${tgt.name} 被净化，清除 ${removed} 个负面状态`,'l-buff');
+        const targetDebuffs=(G.statuses[tgtKey]||[]).filter(x=>DEBUFFS.includes(x.名称)||x.名称.startsWith('流血·')||x.名称.startsWith('中毒·')||x.名称.startsWith('灼烧·')||x.名称.startsWith('内伤·'));
+        const purifyCount=s.数值||0;
+        if(purifyCount>0&&targetDebuffs.length>purifyCount){
+          // 仅清除 N 个随机debuff
+          const shuffled=[...targetDebuffs].sort(()=>Math.random()-0.5);
+          const removed=shuffled.slice(0,purifyCount);
+          const rNames=removed.map(x=>x.名称);
+          G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(x=>!rNames.includes(x.名称));
+          log(`${tgt.name} 被净化，清除 ${removed.length} 个负面状态（${rNames.join('、')}）`,'l-buff');
+        }else{
+          // 清除全部
+          G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(x=>!DEBUFFS.includes(x.名称)&&!x.名称.startsWith('流血·')&&!x.名称.startsWith('中毒·')&&!x.名称.startsWith('灼烧·')&&!x.名称.startsWith('内伤·'));
+        }
         updateCard(tgtKey);
       } else if(s.名称==='驱散'){
         // 驱散增益：清除敌人身上的buff
@@ -5063,6 +5077,14 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
           log(`${tgt.name} 所有增益被驱散！（${buffNames.join('、')}）`,'l-buff');
           floatDmg(q(`card-${tgtKey}`),'全驱散','hsl(280,80%,70%)','20px');
         }
+        updateCard(tgtKey);
+      } else if (s.名称.startsWith('净化·')) {
+        // 定向净化：清除指定名称的debuff，如 净化·中毒 只清除中毒
+        const targetDebuff = s.名称.slice(3); // "中毒"、"流血"等
+        const before = (G.statuses[tgtKey] || []).length;
+        G.statuses[tgtKey] = (G.statuses[tgtKey] || []).filter(x => x.名称 !== targetDebuff && !x.名称.startsWith(targetDebuff + '·'));
+        const removed = before - (G.statuses[tgtKey] || []).length;
+        if (removed > 0) log(`${tgt.name} 被定向净化，清除 ${removed} 个【${targetDebuff}】状态`, 'l-buff');
         updateCard(tgtKey);
       } else if(s.名称==='吸取内力'){
         // 即时吸取：从目标吸取内力给攻击者
@@ -5143,6 +5165,14 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         const st={名称:stName,数值:s.数值||0,剩余回合:selfBuff?(_baseRounds+1):_baseRounds};
         if(s.名称==='斗转星移') st.成功率=s.成功率||0.55;
         if(stName.startsWith('中毒')){const _yw=(G.statuses[atkKey]||[]).find(x=>x.名称==='药王毒术');if(_yw)st.数值=st.数值*(1+(_yw.数值||0.5));}
+        if((stName==='回血'||stName==='回内'||stName==='回血回内')&&!selfBuff){const _yw=(G.statuses[atkKey]||[]).find(x=>x.名称==='药王毒术');if(_yw)st.数值=st.数值*(1+(_yw.数值||0.5));}
+        // ★ 定向免疫判定：检查目标是否有免疫·XXX 状态
+        const immName = '免疫·' + stName.replace(/·.*$/, '');
+        if ((G.statuses[stKey] || []).some(s => s.名称 === immName)) {
+          log(`${stTarget.name}【${immName}】免疫「${st.名称}」`, 'l-buff');
+          floatDmg(q(`card-${stKey}`), '免疫', 'hsl(120,70%,55%)', '14px');
+          continue;
+        }
         G.statuses[stKey]=G.statuses[stKey]||[];
         const exist=G.statuses[stKey].find(x=>x.名称===st.名称);
         const NO_STACK=['点穴','眩晕','冰冻','反弹','反击','封穴','斗转星移'];
@@ -5159,8 +5189,52 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
     }
   }
 }
+// ── 目标双效技能（_dualEffect）：对敌/友施加不同效果 ──
+  const dualCfg = kf._dualEffect;
+  if (dualCfg && tgt.alive && kfName !== '血祭大法') {
+    const isEnemy = G.eKeys.includes(tgtKey);
+    const side = isEnemy ? 'enemy' : 'ally';
+    const sideCfg = dualCfg[side];
+    if (sideCfg) {
+      // 支持施加状态
+      if (sideCfg.影响状态 && sideCfg.影响状态.名称) {
+        const eff = sideCfg.影响状态;
+        const stName = eff.名称;
+        if (Math.random() < (eff.成功率 || 1)) {
+          const dur = eff.影响回合 ?? 3;
+          const st = { 名称: stName, 数值: eff.数值 || 0, 剩余回合: dur };
+          G.statuses[tgtKey] = G.statuses[tgtKey] || [];
+          const exist = G.statuses[tgtKey].find(x => x.名称 === stName);
+          if (exist) { exist.剩余回合 = Math.max(exist.剩余回合, st.剩余回合); exist.数值 = st.数值; }
+          else G.statuses[tgtKey].push(st);
+          log(`${tgt.name} 受到【${stName}】效果（${isEnemy ? '敌方' : '友方'}）`, 'l-buff');
+          floatDmg(q(`card-${tgtKey}`), stName, 'hsl(200,70%,60%)', '16px');
+          updateCard(tgtKey);
+        }
+      }
+      // 支持即时伤害/治疗
+      if (sideCfg.即时效果) {
+        const inst = sideCfg.即时效果;
+        if (inst.回血) {
+          const heal = Math.floor(inst.回血);
+          tgt.hp.cur = Math.min(tgt.hp.max, tgt.hp.cur + heal);
+          log(`${tgt.name} 恢复 ${heal} 气血`, 'l-heal');
+          floatDmg(q(`card-${tgtKey}`), `+${heal}`, 'hsl(158,50%,55%)', '16px');
+          updateCard(tgtKey);
+        }
+        if (inst.伤害) {
+          const dmg = Math.floor(inst.伤害);
+          tgt.hp.cur = Math.max(0, tgt.hp.cur - dmg);
+          log(`${tgt.name} 受到 ${dmg} 点伤害`, 'l-dmg');
+          floatDmg(q(`card-${tgtKey}`), `-${dmg}`, 'hsl(0,70%,50%)', '16px');
+          updateCard(tgtKey);
+          if (tgt.hp.cur <= 0) { tgt.alive = false; updateCard(tgtKey); log(`${tgt.name} 倒下了！`, 'l-sys'); }
+        }
+      }
+    }
+  }
 
-// ── 防御 ─────────────────────────────────────────────────
+  // ── 防御 ─────────────────────────────────────────────────
 function doDefend(){
   const key=G.curKey,c=gA(key); if(!c){endTurn(key);return;}
   G.defending.add(key);
