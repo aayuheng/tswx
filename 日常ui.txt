@@ -4596,8 +4596,9 @@ async function cleanOldRecords(){
 
 async function loadContent() {
   let raw = '';
+  let lastId = -1;
   try {
-    const lastId = getLastMessageId();
+    lastId = getLastMessageId();
     if (lastId >= 0) {
       let targetMsg = null;
       try {
