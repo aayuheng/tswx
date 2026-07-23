@@ -5259,15 +5259,13 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
       }
     }
   }
-}
-// ── 目标双效技能（_dualEffect）：对敌/友施加不同效果 ──
+  // ── 目标双效技能（_dualEffect）：对敌/友施加不同效果 ──
   const dualCfg = kf._dualEffect;
   if (dualCfg && tgt.alive && kfName !== '血祭大法') {
     const isEnemy = G.eKeys.includes(tgtKey);
     const side = isEnemy ? 'enemy' : 'ally';
     const sideCfg = dualCfg[side];
     if (sideCfg) {
-      // 支持施加状态
       if (sideCfg.影响状态 && sideCfg.影响状态.名称) {
         const eff = sideCfg.影响状态;
         const stName = eff.名称;
@@ -5283,7 +5281,6 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
           updateCard(tgtKey);
         }
       }
-      // 支持即时伤害/治疗
       if (sideCfg.即时效果) {
         const inst = sideCfg.即时效果;
         if (inst.回血) {
@@ -5304,8 +5301,9 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
       }
     }
   }
+}
 
-  // ── 防御 ─────────────────────────────────────────────────
+// ── 防御 ─────────────────────────────────────────────────
 function doDefend(){
   const key=G.curKey,c=gA(key); if(!c){endTurn(key);return;}
   G.defending.add(key);
