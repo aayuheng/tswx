@@ -5242,7 +5242,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         if ((G.statuses[stKey] || []).some(s => s.名称 === immName)) {
           log(`${stTarget.name}【${immName}】免疫「${st.名称}」`, 'l-buff');
           floatDmg(q(`card-${stKey}`), '免疫', 'hsl(120,70%,55%)', '14px');
-          continue;
+          return;
         }
         G.statuses[stKey]=G.statuses[stKey]||[];
         const exist=G.statuses[stKey].find(x=>x.名称===st.名称);
