@@ -2879,6 +2879,22 @@ for (const stName of persistent) {
   applyStatus(k, { 名称: stName, 数值: 0, 剩余回合: -1, 来源: '持久状态' });
 }
     G.cds[k]={};
+    // ★ 幻影指环被动：开局自动发动
+    const equip = useData.玩家.装备 || {};
+    const hasRing = [equip.主武器, ...(equip.饰品||[])].some(s => s && s.includes('幻影指环'));
+    if (hasRing) {
+      const targetStates = ['伴侣', '死亡奴隶', '玩物'];
+      let partnerCount = 0;
+      for (const name of Object.keys(useData.我方队友||{})) {
+        const sts = useData.我方队友[name]?.持久状态 || [];
+        if (sts.some(s => targetStates.includes(s))) partnerCount++;
+      }
+      const repeats = 1 + partnerCount;  // 基础1次 + 每伴侣+1
+      const duration = 1 + partnerCount; // 基础1回合 + 每伴侣+1
+      applyStatus(k, { 名称: '幻影连击', 数值: repeats, 剩余回合: duration, 来源: '幻影指环' });
+      log(`【幻影指环】发动！攻击技能重复${repeats}次，持续${duration}回合`, 'l-buff');
+      floatDmg(q(`card-${k}`), `幻影×${repeats}`, 'hsl(280,70%,65%)', '18px');
+    }
     const _pExp=useData.玩家.基础信息?.经验值||0;
     const _pLv=useData.玩家.基础信息?.等级||1;
     G.charExp[k]=_pExp; G.charExpNext[k]=expToNext(_pLv);
@@ -4809,6 +4825,61 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
   }
   // 龙象之力：使用doKungfu预消耗的乘数
   if((G._lxMul||1)>1)dmg*=G._lxMul;
+  // ★ 奴隶神功·羁绊解放：根据奴隶队友数量提高威力（乘算）
+  if (kfName === '奴隶神功·羁绊解放') {
+    const teammates = G.pKeys.filter(k => k !== atkKey && gA(k)?.alive);
+    const targetStates = ['伴侣', '死亡奴隶', '玩物'];
+    let slaveCount = 0;
+    for (const k of teammates) {
+      if ((G.statuses[k] || []).some(s => targetStates.includes(s.名称))) slaveCount++;
+    }
+    if (slaveCount > 0) {
+      const bonus = Math.pow(1.4, slaveCount);  // 乘算：每个奴隶 ×1.4 倍
+      dmg *= bonus;
+      log(`${atk.name}【羁绊解放】${slaveCount}个奴隶加持，伤害×${bonus.toFixed(1)}！`, 'l-crit');
+      floatDmg(q(`card-${atkKey}`), `羁绊×${slaveCount}`, 'hsl(42,80%,60%)', '22px');
+      // ── 全屏金色粒子 ──
+      const canvas = document.getElementById('fx-canvas');
+      if (canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const cx = rect.width / 2, cy = rect.height / 2;
+        FxEngine.spawn(new FxBurst({cx, cy, count: 80,
+          color: [42, 80, 65], speed: 12, size: 3.5, life: 700, freeze: true }));
+        FxEngine.spawn(new FxBurst({cx, cy, count: 40,
+          color: [42, 90, 75], speed: 8, size: 2.5, life: 500, delay: 100 }));
+        FxEngine.spawn(new FxRing({cx, cy, radius: 20, color: [42, 80, 65],
+          width: 4, life: 600 }));
+        FxEngine.spawn(new FxRing({cx, cy, radius: 60, color: [42, 70, 55],
+          width: 2, life: 450, delay: 80 }));
+      }
+      // ── 彩色光炮 ──
+      const atkEl = q(`card-${atkKey}`);
+      const tgtEl = q(`card-${tgtKey}`);
+      if (atkEl && tgtEl) {
+        const ar = atkEl.getBoundingClientRect();
+        const tr = tgtEl.getBoundingClientRect();
+        const from = { x: ar.left + ar.width / 2, y: ar.top + ar.height / 2 };
+        const to = { x: tr.left + tr.width / 2, y: tr.top + tr.height / 2 };
+        const colors = [[42,80,65], [180,70,60], [280,60,65], [10,80,60]];
+        for (let i = 0; i < colors.length; i++) {
+          FxEngine.spawn(new FxBeam({from, to, color: colors[i],
+            width: 5 + i * 2, life: 500, delay: i * 60 }));
+        }
+        FxEngine.spawn(new FxBurst({cx: to.x, cy: to.y, count: 30,
+          color: [42, 90, 75], speed: 6, size: 3, life: 400, delay: 350 }));
+        FxEngine.spawn(new FxRing({cx: to.x, cy: to.y, radius: 80,
+          color: [42, 80, 65], width: 3, life: 500, delay: 300 }));
+      }
+    }
+  }
+  // ★ 幻影连击（幻影指环被动）：重复释放，伤害倍率
+  const _phantomSt = (G.statuses[atkKey] || []).find(s => s.名称 === '幻影连击');
+  if (_phantomSt && _phantomSt.数值 > 0 && !isHealKf) {
+    const mul = 1 + _phantomSt.数值;  // 原伤害 + 重复次数
+    dmg *= mul;
+    log(`${atk.name}【幻影连击】伤害×${mul.toFixed(1)}！`, 'l-crit');
+    floatDmg(q(`card-${atkKey}`), `幻影×${_phantomSt.数值}`, 'hsl(280,70%,65%)', '16px');
+  }
   // 暴击
   const critR=clamp(5+(getAttr(atkKey,'速度')-80)/10,5,15)/100;
   let critted=false;
