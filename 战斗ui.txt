@@ -4795,6 +4795,7 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
       return;
   }
   // ★ 双效技能：对友方跳过基础伤害
+  let _kfNerfed=false;
   if (kf._dualEffect?.skipBaseDmgOnAlly && G.pKeys.includes(tgtKey)) {
     // 跳过伤害计算，直接处理状态和 _dualEffect
   } else {
@@ -4818,7 +4819,6 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
   const isHealKf=kf.作用范围&&(kf.作用范围.includes('我方')||kf.作用范围.includes('仅我'));
   if(!isHealKf) dmg+=getAttr(atkKey,'力量')*1.5;
   // 需要主运内功检查：未满足条件则威力大打折扣（斗转星移反击时跳过）
-  let _kfNerfed=false;
   if(!G._dzxyActive&&kf.需要主运内功&&atk.mainKf!==kf.需要主运内功){
     dmg*=0.1; _kfNerfed=true;
     log(`${atk.name}未主运【${kf.需要主运内功}】，「${kfName}」威力大打折扣！`,'l-miss');
