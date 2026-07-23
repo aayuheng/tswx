@@ -4613,7 +4613,7 @@ async function loadContent() {
           } catch(e) {}
         }
       }
-      if (targetMsg) raw = targetMsg.message || '';
+      if (targetMsg) { raw = targetMsg.message || ''; lastId = targetMsg.message_id ?? lastId; }
     }
   } catch(e) {}
   renderStory(raw);

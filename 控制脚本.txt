@@ -10515,111 +10515,92 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches, externalMsgId) => {
   try {
     const { Mvu, data, aiMsgId } = await getLatestAiData(externalMsgId);
     if (!data?.stat_data) return { ok: false, msg: 'stat_data 不存在' };
-    
-        // ── 补全根字段（避免路径不存在的错误） ──
+
+    // ── 补全根字段 ──
     const sd = data.stat_data;
     if (!sd.敌人) sd.敌人 = {};
     if (!sd.我方队友) sd.我方队友 = {};
     if (!sd.角色) sd.角色 = {};
     if (!sd.世界) sd.世界 = {};
-    if (!sd.玩家) sd.玩家 = {}; // 如果可能也会写入玩家，但通常已存在
-    // 可根据需要添加其他根字段
+    if (!sd.玩家) sd.玩家 = {};
 
     let changes = [];
     for (const patch of patches) {
       const { op, path, value } = patch;
-      
-      // 安全检查：只允许修改白名单内的路径
+
+      // 安全检查
       const allowedPaths = [
         '/世界/时辰', '/世界/日期',
         '/玩家/基础信息/等级', '/玩家/基础信息/经验值', '/玩家/基础信息/下一级所需经验',
         '/玩家/核心状态/血量/当前', '/玩家/核心状态/血量/上限',
         '/玩家/核心状态/内力/当前', '/玩家/核心状态/内力/上限',
         '/玩家/属性/力量', '/玩家/属性/速度', '/玩家/属性/防御力', '/玩家/属性/内功修为', '/玩家/属性/身法',
-        '/玩家/金钱', '/玩家/物品','/玩家/持久状态',
-        '/我方队友', '/角色',
-        '/敌人',   // ← 添加这一行
+        '/玩家/金钱', '/玩家/物品', '/玩家/持久状态',
+        '/我方队友', '/角色', '/敌人',
       ];
-      // 路径前缀匹配（允许子路径）
       const isAllowed = allowedPaths.some(p => path === p || path.startsWith(p + '/'));
       if (!isAllowed) {
-        changes.push(`⛔ 拒绝操作：${path}（不在白名单）`);
+        changes.push('⛔ 拒绝操作：' + path + '（不在白名单）');
         continue;
       }
-      
-      // 特殊处理：持久状态（支持 add/remove 操作）
-            if (path.includes('/持久状态')) {
-              const dotPath = 'stat_data.' + path.slice(1).replace(/\//g, '.');
-              const current = _.get(data, dotPath, []);
-              if (op === 'add') {
-                if (!current.includes(value)) {
-                  current.push(value);
-                  _.set(data, dotPath, current);
-                  changes.push(`✅ 持久状态添加：${value}`);
-                }
-              } else if (op === 'remove') {
-                const filtered = current.filter(s => s !== value);
-                _.set(data, dotPath, filtered);
-                changes.push(`✅ 持久状态移除：${value}`);
-              } else if (op === 'replace') {
-                if (Array.isArray(value)) {
-                  _.set(data, dotPath, value);
-                  changes.push(`✅ 持久状态替换：${value.join(', ')}`);
-                }
-              }
-              continue;
-            }
-      
-            // 特殊处理：堕落度 >= 1000 且为女性，自动添加 肉便器 状态
-            if (path.includes('/堕落度') && typeof value === 'number' && value >= 1000) {
-              const parts = path.split('/');
-              if (parts.length >= 3 && parts[1] === '角色') {
-                const npcKey = parts[2];
-                const rmbPath = `/角色/${npcKey}/持久状态`;
-                const dotPath = 'stat_data.' + rmbPath.slice(1).replace(/\//g, '.');
-                const current = _.get(data, dotPath, []);
-                if (!current.includes('肉便器')) {
-                  current.push('肉便器');
-                  _.set(data, dotPath, current);
-                  changes.push(`✅ 堕落度达到 1000，自动添加 肉便器 状态`);
-                }
-              }
-            }
-      
-            // 通用 replace/insert/delta 操作
-            const dotPath = 'stat_data.' + path.slice(1).replace(/\//g, '.');
-            if (op === 'replace' || op === 'insert') {
-              _.set(data, dotPath, value);
-              changes.push(`✅ ${path} = ${JSON.stringify(value)}`);
-            } else if (op === 'delta') {
-                          // ★ 幂等检查：同一消息的同一路径只delta一次
-                          if (!window._wxDeltaCache) window._wxDeltaCache = new Set();
-                          const deltaKey = `${aiMsgId}:${path}:${value}`;
-                          if (window._wxDeltaCache.has(deltaKey)) {
-                            changes.push(`⏭️ ${path} delta已执行，跳过`);
-                          } else {
-                            window._wxDeltaCache.add(deltaKey);
-                            const old = _.get(data, dotPath, 0);
-                            const newVal = old + value;
-                            _.set(data, dotPath, newVal);
-                            changes.push(`✅ ${path} 变化 ${old} → ${newVal}`);
-                          }
-                        }
-                              }
-      
-                  await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
-                  return { ok: true, changes };
-                } catch(e) {
+
+      // 持久状态特殊处理
+      if (path.includes('/持久状态')) {
+        const dp = 'stat_data.' + path.slice(1).replace(/\//g, '.');
+        const cur = _.get(data, dp, []);
+        if (op === 'add' && !cur.includes(value)) { cur.push(value); _.set(data, dp, cur); changes.push('✅ 持久状态添加：' + value); }
+        else if (op === 'remove') { _.set(data, dp, cur.filter(s => s !== value)); changes.push('✅ 持久状态移除：' + value); }
+        else if (op === 'replace' && Array.isArray(value)) { _.set(data, dp, value); changes.push('✅ 持久状态替换：' + value.join(', ')); }
+        continue;
+      }
+
+      // 堕落度自动添加肉便器
+      if (path.includes('/堕落度') && typeof value === 'number' && value >= 1000) {
+        const parts = path.split('/');
+        if (parts.length >= 3 && parts[1] === '角色') {
+          const rmbPath = 'stat_data.' + '/角色/' + parts[2] + '/持久状态'.slice(1).replace(/\//g, '.');
+          const cur = _.get(data, rmbPath, []);
+          if (!cur.includes('肉便器')) { cur.push('肉便器'); _.set(data, rmbPath, cur); changes.push('✅ 自动添加 肉便器'); }
+        }
+      }
+
+      // 通用操作
+      const dotPath = 'stat_data.' + path.slice(1).replace(/\//g, '.');
+      if (op === 'replace' || op === 'insert') {
+        _.set(data, dotPath, value);
+        changes.push('✅ ' + path + ' = ' + JSON.stringify(value));
+      } else if (op === 'remove') {
+        const parentPath = dotPath.substring(0, dotPath.lastIndexOf('.'));
+        const key = dotPath.substring(dotPath.lastIndexOf('.') + 1);
+        const parent = _.get(data, parentPath);
+        if (parent && typeof parent === 'object') {
+          delete parent[key];
+          changes.push('✅ 删除 ' + path);
+        } else {
+          changes.push('⛔ 删除失败：' + path + ' 父级不存在');
+        }
+      } else if (op === 'delta') {
+        if (!window._wxDeltaCache) window._wxDeltaCache = new Set();
+        const deltaKey = aiMsgId + ':' + path + ':' + value;
+        if (window._wxDeltaCache.has(deltaKey)) {
+          changes.push('⏭️ ' + path + ' delta已执行，跳过');
+        } else {
+          window._wxDeltaCache.add(deltaKey);
+          const old = _.get(data, dotPath, 0);
+          const newVal = old + value;
+          _.set(data, dotPath, newVal);
+          changes.push('✅ ' + path + ' 变化 ' + old + ' → ' + newVal);
+        }
+      }
+    }
+
+    await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
+    return { ok: true, changes };
+  } catch(e) {
     console.error('[JSON Patch] 执行失败:', e);
     return { ok: false, msg: e.message };
   }
 };
-// ══════════════════════════════════════════════════════
-//  WX_STAT_ALLOC — 基本功加点
-//  params:
-//    charKey  'player' | 队友名（key）
-//    alloc    { 拳掌: n, 棍枪: n, ... }  只写非零项
-// ══════════════════════════════════════════════════════
 window.parent.WX_STAT_ALLOC = async ({ charKey, alloc }) => {
   console.log('[加点] charKey:', charKey, 'alloc:', alloc);
   try {
