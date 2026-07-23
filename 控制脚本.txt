@@ -10509,6 +10509,11 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
   try {
     const { Mvu, data, aiMsgId } = await getLatestAiData();
     if (!data?.stat_data) return { ok: false, msg: 'stat_data 不存在' };
+    
+    // ★ 已处理消息缓存：同一消息的 patch 只执行一次
+    if (!window._wxPatchProcessed) window._wxPatchProcessed = new Set();
+    if (window._wxPatchProcessed.has(aiMsgId)) return { ok: true, changes: ['已处理，跳过'] };
+    window._wxPatchProcessed.add(aiMsgId);
 
     // ── 补全根字段（避免路径不存在的错误） ──
     const sd = data.stat_data;
