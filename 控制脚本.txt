@@ -9590,8 +9590,9 @@ function getMvu() {
 async function getLatestAiData() {
   const Mvu = getMvu();
   if (!Mvu) throw new Error('MVU未就绪');
-  const lastId = getLastMessageId();
-  const msgs = await getChatMessages(`0-${lastId}`);
+  const lastId = (typeof getLastMessageId === 'function' ? getLastMessageId() : window.parent?.getLastMessageId?.()) ?? -1;
+  const getMsgs = typeof getChatMessages === 'function' ? getChatMessages : window.parent?.getChatMessages;
+  const msgs = getMsgs ? await getMsgs(`0-${lastId}`) : [];
   let aiMsgId = lastId;
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].role === 'assistant') { aiMsgId = msgs[i].message_id; break; }
