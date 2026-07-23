@@ -4630,7 +4630,7 @@ async function loadContent() {
       const patchMatch = updateVarMatch[1].match(/<JSONPatch>([\s\S]*?)<\/JSONPatch>/);
       if (patchMatch) {
         const patches = JSON.parse(patchMatch[1].trim());
-        const result = await callParent('WX_EXEC_JSON_PATCH', patches);
+        const result = await callParent('WX_EXEC_JSON_PATCH', patches, lastId);
         if (result?.ok) {
           showToast(`变量更新成功（${result.changes.length}项）`);
         } else {

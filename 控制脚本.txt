@@ -9587,9 +9587,14 @@ function getMvu() {
   try { return window.Mvu || window.parent?.Mvu || window.top?.Mvu || null; }
   catch(e) { return null; }
   }
-async function getLatestAiData() {
+async function getLatestAiData(externalMsgId) {
   const Mvu = getMvu();
   if (!Mvu) throw new Error('MVU未就绪');
+  // 外部传入了消息ID则直接使用，无需自己查找
+  if (externalMsgId != null && externalMsgId >= 0) {
+    const data = await Mvu.getMvuData({ type: 'message', message_id: externalMsgId });
+    return { Mvu, data, aiMsgId: externalMsgId };
+  }
   const lastId = (typeof getLastMessageId === 'function' ? getLastMessageId() : window.parent?.getLastMessageId?.()) ?? -1;
   const getMsgs = typeof getChatMessages === 'function' ? getChatMessages : window.parent?.getChatMessages;
   const msgs = getMsgs ? await getMsgs(`0-${lastId}`) : [];
@@ -10506,17 +10511,12 @@ window.parent.WX_MODIFY_FALLEN = async ({ charKey, delta }) => {
   } catch(e) { return { ok: false, msg: e.message }; }
 };
 // ── 执行 JSON Patch 操作（用于 UpdateVariable）─────────────
-window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
+window.parent.WX_EXEC_JSON_PATCH = async (patches, externalMsgId) => {
   try {
-    const { Mvu, data, aiMsgId } = await getLatestAiData();
+    const { Mvu, data, aiMsgId } = await getLatestAiData(externalMsgId);
     if (!data?.stat_data) return { ok: false, msg: 'stat_data 不存在' };
     
-    // ★ 已处理消息缓存：同一消息的 patch 只执行一次
-    if (!window._wxPatchProcessed) window._wxPatchProcessed = new Set();
-    if (window._wxPatchProcessed.has(aiMsgId)) return { ok: true, changes: ['已处理，跳过'] };
-    window._wxPatchProcessed.add(aiMsgId);
-
-    // ── 补全根字段（避免路径不存在的错误） ──
+        // ── 补全根字段（避免路径不存在的错误） ──
     const sd = data.stat_data;
     if (!sd.敌人) sd.敌人 = {};
     if (!sd.我方队友) sd.我方队友 = {};
@@ -10592,12 +10592,20 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches) => {
               _.set(data, dotPath, value);
               changes.push(`✅ ${path} = ${JSON.stringify(value)}`);
             } else if (op === 'delta') {
-              const old = _.get(data, dotPath, 0);
-              const newVal = old + value;
-              _.set(data, dotPath, newVal);
-              changes.push(`✅ ${path} 变化 ${old} → ${newVal}`);
-            }
-                  }
+                          // ★ 幂等检查：同一消息的同一路径只delta一次
+                          if (!window._wxDeltaCache) window._wxDeltaCache = new Set();
+                          const deltaKey = `${aiMsgId}:${path}:${value}`;
+                          if (window._wxDeltaCache.has(deltaKey)) {
+                            changes.push(`⏭️ ${path} delta已执行，跳过`);
+                          } else {
+                            window._wxDeltaCache.add(deltaKey);
+                            const old = _.get(data, dotPath, 0);
+                            const newVal = old + value;
+                            _.set(data, dotPath, newVal);
+                            changes.push(`✅ ${path} 变化 ${old} → ${newVal}`);
+                          }
+                        }
+                              }
       
                   await Mvu.replaceMvuData(data, { type: 'message', message_id: aiMsgId });
                   return { ok: true, changes };
