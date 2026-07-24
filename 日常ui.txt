@@ -3933,11 +3933,11 @@ function buildKungfuPanel(charKey, char) {
         <div class="wx-kungfu-stats">
           <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">作用范围：</span><span class="wx-kungfu-stat-v">${kf.作用范围}</span></div>
           <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">消耗内力：</span><span class="wx-kungfu-stat-v">${kf.消耗内力??0}</span></div>
-          <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">冷却回合：</span><span class="wx-kungfu-stat-v">${kf.冷却[0]}</span></div>
+          <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">冷却回合：</span><span class="wx-kungfu-stat-v">${kf.冷却?.[0]}</span></div>
           <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">基础效果：</span><span class="wx-kungfu-stat-v">${kf.基础效果值<1?Math.round(kf.基础效果值*100)+'%':kf.基础效果值}</span></div>
           <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">属性加成：</span><span class="wx-kungfu-stat-v">${kf.属性附加影响}</span></div>
           <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">命中率：</span><span class="wx-kungfu-stat-v">${Math.round(kf.命中率*100)}%</span></div>
-          <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">伤害浮动：</span><span class="wx-kungfu-stat-v">${kf.伤害浮动[0]}~${kf.伤害浮动[1]}</span></div>
+          <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">伤害浮动：</span><span class="wx-kungfu-stat-v">${kf.伤害浮动?.[0]}~${kf.伤害浮动?.[1]}</span></div>
           <div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">等级要求：</span><span class="wx-kungfu-stat-v">${kf.等级要求}</span></div>
           ${(()=>{const e=Object.entries(kf.基本功要求||{}).filter(([,v])=>v);return e.length?`<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">基本功要求：</span><span class="wx-kungfu-stat-v">${e.map(([k,v])=>`${k}≥${v}`).join(' ')}</span></div>`:''})()}
           ${(()=>{const e=Object.entries(kf.基本功和属性增幅||{}).filter(([,v])=>v);return e.length?`<div class="wx-kungfu-stat"><span class="wx-kungfu-stat-k">增幅加成：</span><span class="wx-kungfu-stat-v">${e.map(([k,v])=>`${k}+${v}`).join(' ')}</span></div>`:''})()}
@@ -4095,7 +4095,7 @@ function bindEvents(wrap, charKey, char, isPlayer) {
       if(kf.描述) html+=`<div class="wx-kf-row" style="font-size:11.5px;color:var(--text-dim);line-height:1.7">${kf.描述}</div>`;
       html+=`<div class="wx-kf-row"><span class="wx-kf-label">作用范围：</span>${kf.作用范围}　<span class="wx-kf-label">消耗内力：</span>${kf.消耗内力??0}</div>`;
       html+=`<div class="wx-kf-row"><span class="wx-kf-label">基础效果：</span>${kf.基础效果值<1?Math.round(kf.基础效果值*100)+'%':kf.基础效果值}　<span class="wx-kf-label">命中率：</span>${Math.round(kf.命中率*100)}%</div>`;
-      html+=`<div class="wx-kf-row"><span class="wx-kf-label">伤害浮动：</span>${kf.伤害浮动[0]}~${kf.伤害浮动[1]}　<span class="wx-kf-label">冷却：</span>${kf.冷却[0]}回合</div>`;
+      html+=`<div class="wx-kf-row"><span class="wx-kf-label">伤害浮动：</span>${kf.伤害浮动?.[0]}~${kf.伤害浮动?.[1]}　<span class="wx-kf-label">冷却：</span>${kf.冷却?.[0]}回合</div>`;
       html+='</div>';
       const req=Object.entries(kf.基本功要求||{}).filter(([,v])=>v);
       html+='<div class="wx-kf-group">';
