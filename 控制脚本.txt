@@ -9597,7 +9597,7 @@ async function getLatestAiData(externalMsgId) {
   }
   const lastId = (typeof getLastMessageId === 'function' ? getLastMessageId() : window.parent?.getLastMessageId?.()) ?? -1;
   const getMsgs = typeof getChatMessages === 'function' ? getChatMessages : window.parent?.getChatMessages;
-  const msgs = getMsgs ? await getMsgs(`0-${lastId}`) : [];
+    const msgs = (getMsgs ? await getMsgs(-1, { role: 'assistant' }) : []) || [];
   let aiMsgId = lastId;
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].role === 'assistant') { aiMsgId = msgs[i].message_id; break; }
@@ -10558,7 +10558,7 @@ window.parent.WX_EXEC_JSON_PATCH = async (patches, externalMsgId) => {
       if (path.includes('/堕落度') && typeof value === 'number' && value >= 1000) {
         const parts = path.split('/');
         if (parts.length >= 3 && parts[1] === '角色') {
-          const rmbPath = 'stat_data.' + '/角色/' + parts[2] + '/持久状态'.slice(1).replace(/\//g, '.');
+          const rmbPath = 'stat_data.角色.' + parts[2] + '.持久状态';
           const cur = _.get(data, rmbPath, []);
           if (!cur.includes('肉便器')) { cur.push('肉便器'); _.set(data, rmbPath, cur); changes.push('✅ 自动添加 肉便器'); }
         }
