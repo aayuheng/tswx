@@ -1181,7 +1181,7 @@ function openSlavePanel() {
                 name: npc.基础信息?.姓名 || key,
                 states: matched,
                 location: npc.所在地 || '未知',
-                level: npc.基础信息?.等级 || '?'
+                level: npc.等级 || '?'
             });
         }
     }
