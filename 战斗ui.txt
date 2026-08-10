@@ -4248,7 +4248,7 @@ function doKungfu(atkKey,kfName,tgtKeys){
   for(const tk of tgtKeys){ const t=gA(tk); if(!t||!t.alive)continue; combos.push(doKfOnTgt(atkKey,kfName,kf,tk)); }
   G._lxMul=1;
   if((kf.冷却?.[0]||0)>0){ G.cds[atkKey]=G.cds[atkKey]||{}; G.cds[atkKey][kfName]=kf.冷却[0]+1; }
-  if(combos.length) Promise.all(combos).then(()=>endTurn(atkKey));
+  if(combos.length) Promise.all(combos).then(()=>endTurn(atkKey)).catch(()=>endTurn(atkKey));
   else endTurn(atkKey);
 }
 
@@ -4795,7 +4795,7 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
       return;
   }
   // ★ 双效技能：对友方跳过基础伤害
-  let _kfNerfed=false;
+  let _kfNerfed=false; let _comboDmg=0;
   if (kf._dualEffect?.skipBaseDmgOnAlly && G.pKeys.includes(tgtKey)) {
     // 跳过伤害计算，直接处理状态和 _dualEffect
   } else {
@@ -5002,6 +5002,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
     const effName=kf.影响状态?.名称||'';
     log(fL(FLAVOR.selfBuff,{atk:atk.name,kf:kfName,eff:effName||kf.描述||''}),'l-buff');
   }
+  _comboDmg=dmg;
   }
   // 状态附加（名称为"无"时跳过；需要主运内功但未满足时跳过）
   if(kf.影响状态&&kf.影响状态.名称&&kf.影响状态.名称!=='无'&&tgt.alive&&!_kfNerfed){
@@ -5078,7 +5079,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
       const hits=Math.max(1,Math.floor(s.数值||1));
       const comboSeq=[];
       for(let i=0;i<hits;i++){
-        if(Math.random()<(s.成功率||0)) comboSeq.push(Math.floor(dmg*0.3*rand(0.8,1.2)));
+        if(Math.random()<(s.成功率||0)) comboSeq.push(Math.floor(_comboDmg*0.3*rand(0.8,1.2)));
         else comboSeq.push(0); // miss
       }
       return new Promise(resolve=>{
@@ -5510,7 +5511,7 @@ function autoAct(key){
     const fxP=[];
     for(const t of tgts)fxP.push(doKfOnTgt(key,usedKf,kf,t));
     if((kf.冷却?.[0]||0)>0){G.cds[key]=G.cds[key]||{};G.cds[key][usedKf]=kf.冷却[0]+1;}
-    Promise.all(fxP).then(()=>endTurn(key));
+    Promise.all(fxP).then(()=>endTurn(key)).catch(()=>endTurn(key));
   } else {
     doNormalAttack(key,tgtKey);
   }
@@ -5695,7 +5696,7 @@ if (_confSt && Math.random() < (_confSt.数值 || 0.5)) {
     const fxPromises=[];
     for(const t of tgts)fxPromises.push(doKfOnTgt(key,usedKf,kf,t));
     if((kf.冷却?.[0]||0)>0){G.cds[key]=G.cds[key]||{};G.cds[key][usedKf]=kf.冷却[0]+1;}
-    Promise.all(fxPromises).then(()=>endTurn(key));
+    Promise.all(fxPromises).then(()=>endTurn(key)).catch(()=>endTurn(key));
   } else {
     doNormalAttack(key,tgtKey);
   }
