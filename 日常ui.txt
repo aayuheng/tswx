@@ -4533,7 +4533,17 @@ function buildTargets() {
   Object.entries(_state?.我方队友||{}).forEach(([k,c])=>t.push({label:c.基础信息?.姓名||k,key:k}));
   return t;
 }
-async function doLearnKungfu(bookName,charKey){ const res=await callParent('WX_LEARN_KUNGFU',{bookName,charKey}); if(res?.ok){showToast(`「${bookName}」已领悟`);await loadState();renderParty();}else showToast(res?.msg||'学习失败'); }
+async function doLearnKungfu(bookName,charKey){
+  // 九阴九阳前置：必须已学会九阴真经+九阳神功（学会后遗忘不影响，判定只看当前已会）
+  if(bookName==='九阴九阳'){
+    const c = charKey==='player' ? _state?.玩家 : _state?.我方队友?.[charKey];
+    const lv = c?.领悟功法||{}; const learned = Array.isArray(lv)?lv:Object.keys(lv);
+    if(!learned.includes('九阴真经')||!learned.includes('九阳神功')){
+      showToast('需先学会「九阴真经」与「九阳神功」，方可参悟「九阴九阳」！');
+      return;
+    }
+  }
+  const res=await callParent('WX_LEARN_KUNGFU',{bookName,charKey}); if(res?.ok){showToast(`「${bookName}」已领悟`);await loadState();renderParty();}else showToast(res?.msg||'学习失败'); }
 async function doUseItem(itemName,targetKey){ const res=await callParent('WX_ITEM_OP',{op:'use',itemName,count:1,targetKey}); if(res?.ok){showToast(res.msg||'使用成功');await loadState();renderParty();}else showToast(res?.msg||'使用失败'); }
 async function doDiscardItem(itemName,category='其他类',count=1){ const suffix=category==='武功类'?'武功修炼秘籍':''; const res=await callParent('WX_ITEM_OP',{op:'discard',itemName,count,category}); if(res?.ok){showToast(`已丢弃「${itemName}」${suffix}×${count}`);await loadState();renderParty();}else showToast(res?.msg||'丢弃失败'); }
 

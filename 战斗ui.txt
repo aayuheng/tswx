@@ -2926,7 +2926,8 @@ for (const stName of persistentAlly) {
     const enemyName = (charData.基础信息?.姓名 || '').toString();
     const enemyTitle = (charData.基础信息?.称号 || '').toString();
     
-    if(enemyName.includes('领袖') || enemyTitle.includes('领袖')){
+    const isLeader = /领袖|boss|畸变体/i.test(enemyName) || /领袖|boss|畸变体/i.test(enemyTitle);
+    if(isLeader){
       
       applyStatus(key, {
         名称: '领袖气场',
@@ -3013,6 +3014,19 @@ for (const stName of persistentAlly) {
         log(`${ac.name}【${kfName}】${eff.名称} 生效`,'l-buff');
       }
     }
+  }
+  // ── 伴侣/玩物 开场播报（队友持有奴隶真气护身时）──
+  for (const _k of G.pKeys) {
+    const _c = gA(_k); if (!_c || !_c.alive) continue;
+    const _sts = G.statuses[_k] || [];
+    const _isPartner = _sts.some(s => s.名称 === '伴侣');
+    const _isToy = _sts.some(s => s.名称 === '玩物');
+    if (!_isPartner && !_isToy) continue;
+    const _masterKey = G.pKeys.find(mk => mk !== _k && gA(mk)?.alive && (G.statuses[mk]||[]).some(s => s.名称 === '奴隶真气护身'));
+    if (!_masterKey) continue;
+    const _masterName = gA(_masterKey).name;
+    if (_isPartner) log(`${_c.name} 被 ${_masterName} 细细呵护，倍感安心`, 'l-buff');
+    if (_isToy) log(`${_c.name} 为了取悦 ${_masterName}，战斗更加卖力`, 'l-buff');
   }
 // 读取炼制次数
 let baihaiCount = 0, miqingCount = 0;
@@ -3291,7 +3305,7 @@ function onActorReady(key){
   applyPassiveHeal(key);
   if(!c.alive){resumeAtb();return;}
 
-  const ctrl=(G.statuses[key]||[]).some(s=>['点穴','眩晕','冰冻'].includes(s.名称));
+  const ctrl=(G.statuses[key]||[]).some(s=>['点穴','眩晕','冰冻','淫乱幻觉'].includes(s.名称));
   if(ctrl){
     log(`${c.name} 受控制，无法行动`,'l-buff');
     endTurn(key); return;
@@ -3777,6 +3791,10 @@ function getWeaponSkill(key){
   }
   return getNormalAtkBskill(key);
 }
+// 队友中存在持有「奴隶真气护身」的存活角色
+function _hasHuShenAlly(key){
+  return G.pKeys.some(k => k !== key && gA(k)?.alive && (G.statuses[k]||[]).some(s=>s.名称==='奴隶真气护身'));
+}
 function _applySlaveBonuses(atkKey, tgtKey, dmg) {
     if (dmg <= 0) return dmg;
 
@@ -3835,6 +3853,30 @@ function _applySlaveBonuses(atkKey, tgtKey, dmg) {
     return Math.max(0, dmg);
 }
 // ── 普攻 ─────────────────────────────────────────────────
+
+// ★ 分身连击通用结算：幻影连击 + 分身 状态叠加，分身再击（每击完整结算命中/伤害/状态，不扣内力、不递归）
+async function phantomChainAttack(atkKey, kfName, kf, tgtKey) {
+  if (G._phantomBusy) return;
+  const sts = G.statuses[atkKey] || [];
+  const ph = sts.find(s => s.名称 === '幻影连击');
+  const fs = sts.find(s => s.名称 === '分身');
+  const phHits = ph ? (ph.数值 - 1) : 0;
+  const fsHits = fs ? (fs.数值 || 0) : 0;
+  const total = phHits + fsHits;
+  if (total <= 0) return;
+  G._phantomBusy = true;
+  const _nm = gA(atkKey)?.name || '';
+  log(`${_nm}【分身】吹毫成兵，分身再击 ×${total}！`, 'l-buff');
+  floatDmg(q(`card-${atkKey}`), `分身×${total}`, 'hsl(280,70%,65%)', '18px');
+  for (let _i = 0; _i < total; _i++) {
+    if (!gA(tgtKey)?.alive) break;
+    await new Promise(r => setTimeout(r, spd(500)));
+    if (kf) await doKfOnTgt(atkKey, kfName, kf, tgtKey);
+    else await doNormalAttack(atkKey, tgtKey, true);
+  }
+  G._phantomBusy = false;
+}
+
 async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
   const atk=gA(atkKey),tgt=gA(tgtKey); if(!atk||!tgt){if(!skipEndTurn)endTurn(atkKey);return;}
   const aShn=getAttr(atkKey,'身法'), tShn=getAttr(tgtKey,'身法');
@@ -3892,6 +3934,15 @@ async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
   if(_atkDn)dmg*=1-(_atkDn.数值||0.2);
   const _xhmg=(G.statuses[atkKey]||[]).find(s=>s.名称==='血海魔功');
   if(_xhmg)dmg*=1+(_xhmg.数值||0.5);
+  // ★ 侠客行（太玄经被动，自带效果不互斥）：攻击上升10% / 防御上升10%
+  if((G.statuses[atkKey]||[]).some(s=>s.名称==='侠客行'))dmg*=1.1;
+  if((G.statuses[tgtKey]||[]).some(s=>s.名称==='侠客行'))dmg*=0.9;
+  // ★ 九阴九阳：攻击提升20%（自带效果）
+  if((G.statuses[atkKey]||[]).some(s=>s.名称==='九阴九阳'))dmg*=1.2;
+  // ★ 玩物：队友有奴隶真气护身时，造成伤害+10%
+  if((G.statuses[atkKey]||[]).some(s=>s.名称==='玩物')&&_hasHuShenAlly(atkKey))dmg*=1.1;
+  // ★ 伴侣：队友有奴隶真气护身时，受到伤害-10%
+  if((G.statuses[tgtKey]||[]).some(s=>s.名称==='伴侣')&&_hasHuShenAlly(tgtKey))dmg*=0.9;
   dmg=Math.floor(dmg);
   dmg = _applySlaveBonuses(atkKey, tgtKey, dmg);
   if(_tgtDef)playSfx(SFX.defend); else {const _wt=BSKILL_TO_WTYPE[wSkill]||'fist';playSfx(getAtkSfx(_wt));}
@@ -3940,6 +3991,7 @@ async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
     log(`${tgt.name}【斗转星移】以彼之道还施彼身 → ${atk.name} -${cDmg}`,'l-crit');
     floatDmg(q(`card-${atkKey}`),`斗转-${cDmg}`,'hsl(200,70%,55%)');
   }
+  await phantomChainAttack(atkKey, null, null, tgtKey);
   if(!skipEndTurn)endTurn(atkKey);
 }
 
@@ -4496,6 +4548,15 @@ async function aiExecuteSsb(atkKey){
 async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
   const atk = gA(atkKey), tgt = gA(tgtKey);
   if (!atk || !tgt || !tgt.alive) return;
+  // ★ 需要状态检查（施放者身份限制，如奴隶真气护身）
+  if (kf.需要状态 && kf.需要状态.length) {
+    const needOk = kf.需要状态.every(st => (G.statuses[atkKey]||[]).some(s=>s.名称===st));
+    if (!needOk) {
+      log(`${atk.name} 没有「${kf.需要状态.join('、')}」状态，无法施展「${kfName}」`, 'l-miss');
+      endTurn(atkKey);
+      return;
+    }
+  }
   // ===== 替身武功通用特判（不硬编码任何武功名） =====
   const subConfig = kf._substitute;
   if (subConfig) {
@@ -4619,6 +4680,15 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
   // ── 通用真实伤害处理（_trueDamage 配置） ──
   const tdConfig = kf._trueDamage;
   if (tdConfig) {
+    // ★ 需要状态检查（如死亡奴隶专属）
+    if (kf.需要状态 && kf.需要状态.length) {
+      const needOk = kf.需要状态.every(st => (G.statuses[atkKey]||[]).some(s=>s.名称===st));
+      if (!needOk) {
+        log(`${atk.name} 没有「${kf.需要状态.join('、')}」状态，无法施展「${kfName}」`, 'l-miss');
+        endTurn(atkKey);
+        return;
+      }
+    }
     if (atk.mp.cur < (kf.消耗内力 || 0)) {
       log(`${atk.name} 内力不足`, 'l-miss');
       endTurn(atkKey);
@@ -4750,7 +4820,7 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
   }
 
   // ── 辅助特判（伴侣献身/玩物侍奉/玩物守护） ──（新增）
-  if (['伴侣献身', '玩物侍奉', '玩物守护'].includes(kfName)) {
+  if (['伴侣献身', '玩物侍奉', '玩物守护', '伴侣滋润'].includes(kfName)) {
       if (atk.mp.cur < kf.消耗内力) {
           log(`${atk.name} 内力不足`, 'l-miss');
           endTurn(atkKey);
@@ -4776,6 +4846,16 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
           applyStatus(tgtKey, { 名称: '伴侣·献身', 数值: 0, 剩余回合: 3, 来源: kfName });
           log(`${atk.name} 对 ${tgt.name} 施加「伴侣·献身」，伤害×1.2，受伤×0.8，持续3回合`, 'l-buff');
           floatDmg(q(`card-${tgtKey}`), '伴侣献身', 'hsl(330,70%,60%)', '16px');
+      } else if (kfName === '伴侣滋润') {
+          const h = Math.floor(tgt.hp.max * 0.99);
+          const m = Math.floor(tgt.mp.max * 0.99);
+          tgt.hp.cur = Math.min(tgt.hp.max, tgt.hp.cur + h);
+          tgt.mp.cur = Math.min(tgt.mp.max, tgt.mp.cur + m);
+          log(`${atk.name} 对 ${tgt.name} 施加「伴侣滋润」，回血+${h} 回内+${m}`, 'l-heal');
+          floatDmg(q(`card-${tgtKey}`), `+${h}血`, 'hsl(158,50%,55%)', '16px');
+          setTimeout(()=>{floatDmg(q(`card-${tgtKey}`), `+${m}内`, 'hsl(210,70%,55%)', '16px'); fxHeal(q(`card-${tgtKey}`), 'mp');}, spd(400));
+          fxHeal(q(`card-${tgtKey}`), 'hp');
+          updateCard(tgtKey);
       } else if (kfName === '玩物侍奉') {
           applyStatus(tgtKey, { 名称: '玩物·攻击上升', 数值: 0.2, 剩余回合: 3, 来源: kfName });
           log(`${atk.name} 对 ${tgt.name} 施加「玩物·攻击上升」，攻击+20%`, 'l-buff');
@@ -4872,14 +4952,6 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
       }
     }
   }
-  // ★ 幻影连击（幻影指环被动）：重复释放，伤害倍率
-  const _phantomSt = (G.statuses[atkKey] || []).find(s => s.名称 === '幻影连击');
-  if (_phantomSt && _phantomSt.数值 > 0 && !isHealKf) {
-    const mul = 1 + _phantomSt.数值;  // 原伤害 + 重复次数
-    dmg *= mul;
-    log(`${atk.name}【幻影连击】伤害×${mul.toFixed(1)}！`, 'l-crit');
-    floatDmg(q(`card-${atkKey}`), `幻影×${_phantomSt.数值}`, 'hsl(280,70%,65%)', '16px');
-  }
   // 暴击
   const critR=clamp(5+(getAttr(atkKey,'速度')-80)/10,5,15)/100;
   let critted=false;
@@ -4892,12 +4964,21 @@ async function doKfOnTgt(atkKey, kfName, kf, tgtKey) {
   if(G._overLvTier>=2&&G.eKeys.includes(atkKey))dmg*=1.7;
   // 攻击上升/下降：最终伤害乘数（治疗类不受影响）
   if(!isHealKf){
-    const _atkUp2=(G.statuses[atkKey]||[]).find(s=>s.名称==='攻击上升');
+    const _atkUp2=(G.statuses[atkKey]||[]).find(s=>s.名称==='攻击上升' || s.名称 === '护身·攻击上升');
     if(_atkUp2)dmg*=1+(_atkUp2.数值||0.2);
     const _atkDn2=(G.statuses[atkKey]||[]).find(s=>s.名称==='攻击下降');
     if(_atkDn2)dmg*=1-(_atkDn2.数值||0.2);
     const _xhmg2=(G.statuses[atkKey]||[]).find(s=>s.名称==='血海魔功');
     if(_xhmg2)dmg*=1+(_xhmg2.数值||0.5);
+    // ★ 侠客行（太玄经被动，自带效果不互斥）：攻击上升10% / 防御上升10%
+    if((G.statuses[atkKey]||[]).some(s=>s.名称==='侠客行'))dmg*=1.1;
+    if((G.statuses[tgtKey]||[]).some(s=>s.名称==='侠客行'))dmg*=0.9;
+    // ★ 九阴九阳：攻击提升20%（自带效果）
+    if((G.statuses[atkKey]||[]).some(s=>s.名称==='九阴九阳'))dmg*=1.2;
+    // ★ 玩物：队友有奴隶真气护身时，造成伤害+10%
+    if((G.statuses[atkKey]||[]).some(s=>s.名称==='玩物')&&_hasHuShenAlly(atkKey))dmg*=1.1;
+    // ★ 伴侣：队友有奴隶真气护身时，受到伤害-10%
+    if((G.statuses[tgtKey]||[]).some(s=>s.名称==='伴侣')&&_hasHuShenAlly(tgtKey))dmg*=0.9;
     // ★ 愈战愈勇：友方倒下越多伤害越高
     const _yzBuff = (G.statuses[atkKey]||[]).find(s => s.名称 === '愈战愈勇');
     if (_yzBuff && _yzBuff.数值 > 0) {
@@ -5004,8 +5085,10 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
   }
   _comboDmg=dmg;
   }
-  // 状态附加（名称为"无"时跳过；需要主运内功但未满足时跳过）
-  if(kf.影响状态&&kf.影响状态.名称&&kf.影响状态.名称!=='无'&&tgt.alive&&!_kfNerfed){
+  // 状态附加（名称为"无"时跳过；需要主运内功未满足跳过；需要目标状态未满足跳过——如淫乱幻觉须摧花领域）
+  const _tgtNeedOk = !kf.需要目标状态 || kf.需要目标状态.length===0 || kf.需要目标状态.every(st=>(G.statuses[tgtKey]||[]).some(s=>s.名称===st));
+  if(!_tgtNeedOk&&kf.影响状态&&kf.影响状态.名称&&kf.影响状态.名称!=='无'){log(`${tgt.name} 没有「${kf.需要目标状态.join('、')}」，「${kfName}」未能生效`,'l-buff');}
+  if(kf.影响状态&&kf.影响状态.名称&&kf.影响状态.名称!=='无'&&tgt.alive&&!_kfNerfed&&_tgtNeedOk){
     // 奴隶之毒：根据队友数量增强概率和DOT数值（新增）
     let eff;
     if (kfName === '奴隶之毒') {
@@ -5114,7 +5197,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
     } else if(s.名称==='斗转星移'||Math.random()<(s.成功率||0)){
       // 净化：清除目标负面状态
       if(s.名称==='净化'){
-        const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','灼烧','内伤','失明','攻击下降','防御下降','伤害加深','重伤','定身','麻痹','诅咒','嘲讽','恨之牺牲·降防'];
+        const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','灼烧','内伤','失明','攻击下降','防御下降','伤害加深','重伤','定身','麻痹','诅咒','嘲讽','恨之牺牲·降防','淫乱幻觉'];
         const targetDebuffs=(G.statuses[tgtKey]||[]).filter(x=>DEBUFFS.includes(x.名称)||x.名称.startsWith('流血·')||x.名称.startsWith('中毒·')||x.名称.startsWith('灼烧·')||x.名称.startsWith('内伤·'));
         const purifyCount=s.数值||0;
         if(purifyCount>0&&targetDebuffs.length>purifyCount){
@@ -5205,7 +5288,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         const isImm=/^免伤/.test(s.名称);
         const isImmAbn=s.名称==='免疫异常';
         // 好buff列表
-        const GOOD_BUFFS=['攻击上升','防御上升','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','速度上升','免疫异常'];
+        const GOOD_BUFFS=['攻击上升','防御上升','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','速度上升','免疫异常','分身','九阴九阳'];
         const isGoodBuff=GOOD_BUFFS.includes(s.名称)||isImm;
         // 攻击技附带好buff（基础效果值非0 且 好buff）→ 给攻击者自己
         const isAtkWithGoodBuff=isGoodBuff&&(kf.基础效果值||0)!==0;
@@ -5213,11 +5296,11 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         const stKey=(isImm||isImmAbn||isAtkWithGoodBuff)?atkKey:tgtKey;
         const stTarget=(isImm||isImmAbn||isAtkWithGoodBuff)?atk:tgt;
         // 免疫异常拦截：目标身上有免疫异常时，debuff/控制无法施加
-        const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','内伤','失明','攻击下降','防御下降','灼烧'];
+        const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','内伤','失明','攻击下降','防御下降','灼烧','淫乱幻觉'];
         const _isDebuff=DEBUFFS.some(d=>s.名称===d||s.名称.startsWith(d+'·'));
         if(_isDebuff){
           const tgtSts=G.statuses[tgtKey]||[];
-          if(tgtSts.find(x=>x.名称==='免疫异常')){
+          if(tgtSts.find(x=>x.名称==='免疫异常'||x.名称==='九阴九阳')){
             const _el=q(`card-${tgtKey}`);
             const _r=_el?_el.getBoundingClientRect():{left:0,top:0,width:0,height:0};
             const _cx=_r.left+_r.width/2,_cy=_r.top+_r.height/2;
@@ -5247,7 +5330,7 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         }
         G.statuses[stKey]=G.statuses[stKey]||[];
         const exist=G.statuses[stKey].find(x=>x.名称===st.名称);
-        const NO_STACK=['点穴','眩晕','冰冻','反弹','反击','封穴','斗转星移'];
+        const NO_STACK=['点穴','眩晕','冰冻','反弹','反击','封穴','斗转星移','淫乱幻觉'];
         const noStack=NO_STACK.includes(st.名称)||/^免伤/.test(st.名称);
         if(exist){exist.剩余回合=Math.max(exist.剩余回合,st.剩余回合);if(noStack)exist.数值=st.数值;else exist.数值+=st.数值;}
         else G.statuses[stKey].push(st);
@@ -5301,6 +5384,11 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         }
       }
     }
+  }
+
+
+  if (kf.基础效果值 > 0 && !isHealKf) {
+    await phantomChainAttack(atkKey, kfName, kf, tgtKey);
   }
 }
 
@@ -5396,7 +5484,7 @@ function doItem(tgtKey,name,item){
     const type=item.类型||'回血';
     if(type==='回血'){c.hp.cur=Math.min(c.hp.max,c.hp.cur+val);log(`${user?.name||''} 对 ${c.name} 使用${name}，回复 ${val} 气血`,'l-heal');floatDmg(q(`card-${tgtKey}`),`+${val}`,'hsl(158,50%,55%)');fxHeal(q(`card-${tgtKey}`),'hp');}
     else if(type==='回内'){c.mp.cur=Math.min(c.mp.max,c.mp.cur+val);log(`${user?.name||''} 对 ${c.name} 使用${name}，回复 ${val} 内力`,'l-heal');floatDmg(q(`card-${tgtKey}`),`+${val}`,'hsl(210,70%,55%)');fxHeal(q(`card-${tgtKey}`),'mp');}
-    else if(type==='回状态'){const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','灼烧','内伤','失明','攻击下降','防御下降','伤害加深','重伤','定身','麻痹','诅咒','嘲讽','恨之牺牲·降防'];G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(s=>!DEBUFFS.includes(s.名称)&&!s.名称.startsWith('流血·')&&!s.名称.startsWith('中毒·')&&!s.名称.startsWith('灼烧·')&&!s.名称.startsWith('内伤·'));log(`${user?.name||''} 对 ${c.name} 使用${name}，清除负面状态`,'l-buff');floatDmg(q(`card-${tgtKey}`),'净化','hsl(42,80%,55%)',14);fxHeal(q(`card-${tgtKey}`),'status');}
+    else if(type==='回状态'){const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','灼烧','内伤','失明','攻击下降','防御下降','伤害加深','重伤','定身','麻痹','诅咒','嘲讽','恨之牺牲·降防','淫乱幻觉'];G.statuses[tgtKey]=(G.statuses[tgtKey]||[]).filter(s=>!DEBUFFS.includes(s.名称)&&!s.名称.startsWith('流血·')&&!s.名称.startsWith('中毒·')&&!s.名称.startsWith('灼烧·')&&!s.名称.startsWith('内伤·'));log(`${user?.name||''} 对 ${c.name} 使用${name}，清除负面状态`,'l-buff');floatDmg(q(`card-${tgtKey}`),'净化','hsl(42,80%,55%)',14);fxHeal(q(`card-${tgtKey}`),'status');}
   }
   G.battleLog.push({t:'ITEM',a:user?.name||'',item:name,v:c.name});
   G.itemsUsed[name]=(G.itemsUsed[name]||0)+1;
@@ -5436,6 +5524,8 @@ function autoAct(key){
   const c=gA(key); if(!c||!c.alive){endTurn(key);return;}
   const es=aliveE(); if(!es.length){endTurn(key);return;}
   const tgtKey=es[Math.floor(Math.random()*es.length)];
+  const _autoCtrl=(G.statuses[key]||[]).some(s=>['点穴','眩晕','冰冻','淫乱幻觉'].includes(s.名称));
+  if(_autoCtrl){log(`${c.name} 受控制，无法行动`,'l-buff');endTurn(key);return;}
   const sealed=(G.statuses[key]||[]).some(s=>s.名称==='封穴');
   let usedKf=null;
 
@@ -5543,6 +5633,8 @@ function enemyAct(key){
   const c=gA(key); if(!c||!c.alive){endTurn(key);return;}
   const ps=aliveP(); if(!ps.length){endTurn(key);return;}
   const es=aliveE();
+  const _enemyCtrl=(G.statuses[key]||[]).some(s=>['点穴','眩晕','冰冻','淫乱幻觉'].includes(s.名称));
+  if(_enemyCtrl){log(`${c.name} 受控制，无法行动`,'l-buff');endTurn(key);return;}
   const sealed=(G.statuses[key]||[]).some(s=>s.名称==='封穴');
   const role=_classifyRole(c.kungfu||[]);
   const hpPct=c.hp.cur/c.hp.max;
@@ -5781,6 +5873,25 @@ function dealDmg(key, dmg) {
 
   updateCard(key);
 
+  // ★ 代死（死亡奴隶）：持有「奴隶真气护身」的角色血量归0时，由存活且持有「死亡奴隶」的队友舍身代死，主人气血内力全部回满
+  if (c.hp.cur <= 0 && G.pKeys.includes(key) && (G.statuses[key]||[]).some(s=>s.名称==='奴隶真气护身')) {
+    const _slaveKey = G.pKeys.find(k => k !== key && gA(k)?.alive && (G.statuses[k]||[]).some(s=>s.名称==='死亡奴隶'));
+    if (_slaveKey) {
+      const _sc = gA(_slaveKey);
+      c.hp.cur = c.hp.max;
+      c.mp.cur = c.mp.max;
+      _sc.hp.cur = 0;
+      _sc.alive = false;
+      log(`${_sc.name}【死亡奴隶】舍身代死，为 ${c.name} 挡下致命一击！${c.name} 气血内力完全恢复！`, 'l-buff');
+      floatDmg(q(`card-${key}`), '代死重生', 'hsl(42,80%,65%)', '18px');
+      floatDmg(q(`card-${_slaveKey}`), '舍身代死', 'hsl(330,70%,60%)', '16px');
+      updateCard(key);
+      updateCard(_slaveKey);
+      G.battleLog.push({t:'SAC', v:c.name, s:_sc.name});
+      log(`${_sc.name} 为救主而死，倒下了！`, 'l-sys');
+    }
+  }
+
   if (c.hp.cur <= 0) {
     c.alive = false;
     // 死亡时清除替身（保险）
@@ -5812,7 +5923,7 @@ function calcKfMaxBonus(key){
 function grantKillExp(enemyKey){
   const e=gA(enemyKey); if(!e)return;
   const alive=aliveP(); if(!alive.length)return;
-  const boss=/boss/i.test(e.name)||/boss/i.test(e.title||'');
+  const boss=/领袖|boss|畸变体/i.test(e.name)||/领袖|boss|畸变体/i.test(e.title||'');
   const elite=/精英/.test(e.name);
   const _isXinmoExp=/^\[心魔\]/.test(e.name);
   
@@ -6010,17 +6121,6 @@ function processStatusTick(key){
       dealDmg(key,d);
       log(`${c.name}【${s.名称}】-${d}`,'l-dmg');
     }
-    // 奴隶自愈（新增）
-    if (s.名称 === '奴隶自愈') {
-        const heal = Math.floor(c.hp.max * 0.2);
-        if (heal > 0) {
-            c.hp.cur = Math.min(c.hp.max, c.hp.cur + heal);
-            log(`${c.name}【奴隶自愈】恢复 ${heal} 血量`, 'l-heal');
-            floatDmg(q(`card-${key}`), `+${heal}`, 'hsl(158,50%,55%)', '14px');
-            fxHeal(q(`card-${key}`), 'hp');
-            updateCard(key);
-        }
-    }
     if(s.名称.startsWith('内伤')){
       const d=s.数值>0&&s.数值<1?Math.floor(c.mp.max*s.数值):Math.floor(s.数值||c.mp.max*0.05);
       if(c.mp.cur>=d){ c.mp.cur-=d; log(`${c.name}【内伤】内力-${d}`,'l-dmg'); }
@@ -6060,12 +6160,49 @@ function processStatusTick(key){
       if(m>0){c.mp.cur=Math.min(c.mp.max,c.mp.cur+m);log(`${c.name}【九阳护体】回内+${m}`,'l-heal');setTimeout(()=>{floatDmg(q(`card-${key}`),`+${m}`,'hsl(210,70%,55%)',14);fxHeal(q(`card-${key}`),'mp');},spd(500));}
       updateCard(key);
     }
+    // ★ 九阴九阳（九阴真经+九阳神功融会贯通，自带效果）：每回合回血15%回内10%
+    if(s.名称==='九阴九阳'){
+      const h=Math.floor(c.hp.max*0.15);
+      const m=Math.floor(c.mp.max*0.10);
+      if(h>0){c.hp.cur=Math.min(c.hp.max,c.hp.cur+h);log(`${c.name}【九阴九阳】回血+${h}`,'l-heal');floatDmg(q(`card-${key}`),`+${h}`,'hsl(158,50%,55%)',14);fxHeal(q(`card-${key}`),'hp');}
+      if(m>0){c.mp.cur=Math.min(c.mp.max,c.mp.cur+m);log(`${c.name}【九阴九阳】回内+${m}`,'l-heal');setTimeout(()=>{floatDmg(q(`card-${key}`),`+${m}`,'hsl(210,70%,55%)',14);fxHeal(q(`card-${key}`),'mp');},spd(500));}
+      updateCard(key);
+    }
     if(s.名称==='血海魔功'){
       const d=Math.floor(c.hp.max*0.2);
       dealDmg(key,d);
       log(`${c.name}【血海魔功】气血翻涌 -${d}`,'l-dmg');
       floatDmg(q(`card-${key}`),`-${d}`,'hsl(0,70%,50%)','14px');
       updateCard(key);
+    }
+    // ★ 淫乱幻觉（主人精神秘技）：不能行动+每回合扣血5%扣内10%+淫语播报
+    if(s.名称==='淫乱幻觉'&&c.alive){
+      const hd=Math.floor(c.hp.max*0.05);
+      const md=Math.floor(c.mp.max*0.10);
+      if(hd>0){dealDmg(key,hd);log(`${c.name}【淫乱幻觉】气血-${hd}`,'l-dmg');floatDmg(q(`card-${key}`),`-${hd}`,'hsl(330,70%,60%)','14px');}
+      if(md>0){c.mp.cur=Math.max(0,c.mp.cur-md);log(`${c.name}【淫乱幻觉】内力-${md}`,'l-dmg');setTimeout(()=>{floatDmg(q(`card-${key}`),`-${md}内`,'hsl(280,70%,55%)','14px');},spd(300));}
+      const _ylxLines=['啊……不要……身体……不听使唤了……','呜……眼前……全是幻影……好热……好奇怪……','哈……哈……为什么……脑子里全是那些画面……','不……住手……那里……不行……腰好软……','救……救命……我……我站不起来了……','嗯啊……要……要坏掉了……战斗……战斗不能……'];
+      log(`${c.name} 淫语：${_ylxLines[Math.floor(Math.random()*_ylxLines.length)]}`,'l-buff');
+      updateCard(key);
+    }
+    // ★ 蛇王降临（金蛇心法被动，自带效果）：每回合回内5%
+    if(s.名称==='蛇王降临'&&c.alive){
+      const m=Math.floor(c.mp.max*0.05);
+      if(m>0){c.mp.cur=Math.min(c.mp.max,c.mp.cur+m);log(`${c.name}【蛇王降临】回内 +${m}`,'l-heal');floatDmg(q(`card-${key}`),`+${m}内`,'hsl(210,70%,55%)',14);fxHeal(q(`card-${key}`),'mp');updateCard(key);}
+    }
+    // ★ 侠客行（太玄经被动，自带效果）：每回合回血回内5%
+    if(s.名称==='侠客行'&&c.alive){
+      const h=Math.floor(c.hp.max*0.05);
+      const m=Math.floor(c.mp.max*0.05);
+      if(h>0)c.hp.cur=Math.min(c.hp.max,c.hp.cur+h);
+      if(m>0)c.mp.cur=Math.min(c.mp.max,c.mp.cur+m);
+      if(h>0||m>0){
+        log(`${c.name}【侠客行】回血+${h} 回内+${m}`,'l-heal');
+        if(h>0)floatDmg(q(`card-${key}`),`+${h}血`,'hsl(158,50%,55%)',14);
+        if(m>0)setTimeout(()=>{floatDmg(q(`card-${key}`),`+${m}内`,'hsl(210,70%,55%)',14);fxHeal(q(`card-${key}`),'mp');},spd(400));
+        fxHeal(q(`card-${key}`),'hp');
+        updateCard(key);
+      }
     }
 	if(s.名称 === '领袖气场' && c.alive){
       const abnormalStatuses = ['点穴','眩晕','冰冻','封穴','失明','攻击下降','防御下降','混乱'];
@@ -6490,7 +6627,7 @@ function makeCard(key){
 }
 
 function renderSt(key){
-  const BUFFS=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场'];
+  const BUFFS=['攻击上升','防御上升','回血','回内','回血回内','吸取内力','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','连击','免伤','免疫异常','速度上升','小无相功','龙象之力','奴隶真气护身','领袖气场','分身','幻影连击','九阴九阳'];
   const CTRLS=['点穴','眩晕','冰冻','封穴'];
   return(G.statuses[key]||[]).map(s=>{
     const b=BUFFS.includes(s.名称)||/^免伤/.test(s.名称)||s.名称==='摧花领域'||s.名称==='采花领域';
