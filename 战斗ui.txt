@@ -2949,7 +2949,7 @@ for (const stName of persistentAlly) {
       // 跳过锁血/限伤/混乱——这些需要主动触发或阈值触发，不从开局自动挂
       if (stName === '锁血' || stName === '限伤' || stName === '混乱') continue;
       // 跳过免伤系列——免伤应由主动技能或装备提供
-      if (stName === '免伤' || stName.startsWith('免伤·')) continue;
+      if (/^免伤/.test(stName) || stName === '爱之牺牲·护盾') continue;
       applyStatus(key, {
         名称: stName,
         数值: kf.影响状态.数值 || 0,
@@ -3010,6 +3010,9 @@ for (const stName of persistentAlly) {
       }
       // 非内功：影响回合===-1 则开局自动生效
       if(eff.影响回合===-1){
+        // ★ 跳过特殊状态：免伤/护盾/锁血/限伤/混乱 需主动施放或阈值触发，不从开局自动挂（与敌人被动扫描一致）
+        const _pn = eff.名称;
+        if (/^免伤/.test(_pn) || _pn === '爱之牺牲·护盾' || _pn === '锁血' || _pn === '限伤' || _pn === '混乱') continue;
         applyStatus(k,{名称:eff.名称,数值:eff.数值||0,剩余回合:-1,来源:kfName});
         log(`${ac.name}【${kfName}】${eff.名称} 生效`,'l-buff');
       }
@@ -3532,10 +3535,10 @@ function checkImmunity(defKey, bskillName){
   // 爱之牺牲·护盾（独立免伤，不与其他免伤冲突覆盖）
   const loveShield = sts.find(s => s.名称 === '爱之牺牲·护盾');
   if (loveShield) return loveShield;
-  // 分类免伤（免伤·拳掌/免伤·剑/免伤·刀/免伤·暗器/免伤·棍枪）
+  // 分类免伤（免伤·拳掌/免伤·剑/免伤·刀/免伤·暗器/免伤·棍枪；兼容"免伤刀"不带·写法）
   if(bskillName){
-    const immName='免伤·'+bskillName;
-    const sp=sts.find(s=>s.名称===immName);
+    const immName=BSKILL_TO_IMM[bskillName]||('免伤·'+bskillName);
+    const sp=sts.find(s=>s.名称===immName||s.名称==='免伤·'+bskillName);
     if(sp) return sp;
   }
   return null;
@@ -3871,8 +3874,12 @@ async function phantomChainAttack(atkKey, kfName, kf, tgtKey) {
   for (let _i = 0; _i < total; _i++) {
     if (!gA(tgtKey)?.alive) break;
     await new Promise(r => setTimeout(r, spd(500)));
-    if (kf) await doKfOnTgt(atkKey, kfName, kf, tgtKey);
-    else await doNormalAttack(atkKey, tgtKey, true);
+    try {
+      if (kf) await doKfOnTgt(atkKey, kfName, kf, tgtKey);
+      else await doNormalAttack(atkKey, tgtKey, true);
+    } catch (e) {
+      console.warn('[分身] 连击异常已捕获:', e?.message);
+    }
   }
   G._phantomBusy = false;
 }
@@ -3961,11 +3968,12 @@ async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
   // 吸取内力
   const drain=(G.statuses[atkKey]||[]).find(s=>s.名称==='吸取内力');
   if(drain&&gA(tgtKey)?.alive){const dv=Math.floor(dmg*(drain.数值||0.1));const tc=gA(tgtKey);const ac=gA(atkKey);const stolen=Math.min(dv,tc.mp.cur);tc.mp.cur-=stolen;ac.mp.cur=Math.min(ac.mp.max,ac.mp.cur+stolen);updateCard(tgtKey);updateCard(atkKey);if(stolen>0)log(`${atk.name} 吸取 ${tgt.name} ${stolen} 内力`,'l-buff');}
-  dealDmg(tgtKey,dmg);
-  G.battleLog.push({t:'ATK',a:atk.name,v:tgt.name,d:dmg});
+  // ★ 先播报伤害，再结算扣血/死亡（与技能端一致，避免播报乱序）
   const _st2=getAtkStyle(atkKey);
   log(`${atk.name}${_rF(_st2.verbs)}${tgt.name} -${dmg}`,'l-dmg');
   floatDmg(q(`card-${tgtKey}`),`-${dmg}`,'hsl(355,65%,60%)');
+  dealDmg(tgtKey,dmg);
+  G.battleLog.push({t:'ATK',a:atk.name,v:tgt.name,d:dmg});
   if(!_dzxyHit){
     // 反击
     const ctr=(G.statuses[tgtKey]||[]).find(s=>s.名称==='反击');
@@ -3991,7 +3999,11 @@ async function doNormalAttack(atkKey,tgtKey,skipEndTurn){
     log(`${tgt.name}【斗转星移】以彼之道还施彼身 → ${atk.name} -${cDmg}`,'l-crit');
     floatDmg(q(`card-${atkKey}`),`斗转-${cDmg}`,'hsl(200,70%,55%)');
   }
-  await phantomChainAttack(atkKey, null, null, tgtKey);
+  try {
+    await phantomChainAttack(atkKey, null, null, tgtKey);
+  } catch (e) {
+    console.warn('[普攻] 分身结算异常已捕获:', e?.message);
+  }
   if(!skipEndTurn)endTurn(atkKey);
 }
 
@@ -5058,12 +5070,13 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
     fxHeal(q(`card-${tgtKey}`),'hp');
     G.battleLog.push({t:'HEAL',a:atk.name,v:tgt.name,sk:kfName,d:dmg});
   } else if(dmg>0){
-    dmg = _applySlaveBonuses(atkKey, tgtKey, dmg);  // ← 新增这一行
-    dealDmg(tgtKey,dmg);
+    dmg = _applySlaveBonuses(atkKey, tgtKey, dmg);
+    // ★ 先播报伤害，再结算扣血/死亡（避免"倒下"先于"劈中"的播报乱序）
     const color=critted?'var(--gold-bright)':'hsl(355,65%,60%)';
     const sz=critted?'22px':'17px';
     log(fL(critted?FLAVOR.kfCrit:FLAVOR.kfHit,{atk:atk.name,kf:kfName,tgt:tgt.name})+` -${dmg}${critted?' 暴击！':''}`,(critted?'l-crit':'l-dmg'));
     floatDmg(q(`card-${tgtKey}`),critted?`暴 -${dmg}`:`-${dmg}`,color,sz);
+    dealDmg(tgtKey,dmg);
     G.battleLog.push({t:'KF',a:atk.name,v:tgt.name,sk:kfName,d:dmg,crit:critted});
   }
   // 斗转星移反击（武功）
@@ -5290,11 +5303,10 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
         // 好buff列表
         const GOOD_BUFFS=['攻击上升','防御上升','反弹','反击','斗转星移','药王毒术','力量上升','身法上升','闪避提升','闪避上升','速度上升','免疫异常','分身','九阴九阳'];
         const isGoodBuff=GOOD_BUFFS.includes(s.名称)||isImm;
-        // 攻击技附带好buff（基础效果值非0 且 好buff）→ 给攻击者自己
+        // ★ 目标判定：攻击技（基础效果值非0，如独孤九剑）附带的好buff挂给攻击者自己；辅助技（基础效果值0，如吉光片羽/长生天之庇）挂给选中的目标
         const isAtkWithGoodBuff=isGoodBuff&&(kf.基础效果值||0)!==0;
-        // 免伤/免疫异常/攻击技好buff：挂给攻击者自己；其余：挂给目标
-        const stKey=(isImm||isImmAbn||isAtkWithGoodBuff)?atkKey:tgtKey;
-        const stTarget=(isImm||isImmAbn||isAtkWithGoodBuff)?atk:tgt;
+        const stKey=isAtkWithGoodBuff?atkKey:tgtKey;
+        const stTarget=isAtkWithGoodBuff?atk:tgt;
         // 免疫异常拦截：目标身上有免疫异常时，debuff/控制无法施加
         const DEBUFFS=['点穴','眩晕','冰冻','封穴','流血','中毒','内伤','失明','攻击下降','防御下降','灼烧','淫乱幻觉'];
         const _isDebuff=DEBUFFS.some(d=>s.名称===d||s.名称.startsWith(d+'·'));
@@ -5387,8 +5399,12 @@ if (tianshuSt && kfName && kfName.startsWith('星斗剑法·')) {
   }
 
 
-  if (kf.基础效果值 > 0 && !isHealKf) {
-    await phantomChainAttack(atkKey, kfName, kf, tgtKey);
+  {
+    // ★ 修复：isHealKf 原在伤害计算 else 块内声明（块级作用域），此处引用会 ReferenceError
+    const _isHealScope = kf.作用范围 && (kf.作用范围.includes('我方') || kf.作用范围.includes('仅我'));
+    if (kf.基础效果值 > 0 && !_isHealScope) {
+      await phantomChainAttack(atkKey, kfName, kf, tgtKey);
+    }
   }
 }
 
@@ -5595,8 +5611,14 @@ function autoAct(key){
       const pick=isAlly?pool[Math.floor(Math.random()*pool.length)]:tgtKey;
       tgts=[pick];
       if(pool.length>1){const idx=pool.indexOf(pick);const cd=[];if(idx>0)cd.push(pool[idx-1]);if(idx<pool.length-1)cd.push(pool[idx+1]);if(cd.length)tgts.push(cd[Math.floor(Math.random()*cd.length)]);}
+    } else if(isAlly){
+      // 辅助/治疗类：优先给其他队友（自己残血且是回血技时才自保，无队友则给自己）
+      const _selfLow = c.hp.cur/c.hp.max < 0.3 && _isHeal(kf);
+      const allies = pool.filter(k=>k!==key);
+      if(_selfLow || !allies.length) tgts=[key];
+      else tgts=[allies[Math.floor(Math.random()*allies.length)]];
     } else {
-      tgts=isAlly?[pool[Math.floor(Math.random()*pool.length)]]:[tgtKey];
+      tgts=[tgtKey];
     }
     const fxP=[];
     for(const t of tgts)fxP.push(doKfOnTgt(key,usedKf,kf,t));
